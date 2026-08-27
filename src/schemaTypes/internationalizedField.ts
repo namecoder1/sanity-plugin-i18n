@@ -1,5 +1,6 @@
 import type {ComponentType} from 'react'
 import {defineType, defineField, defineArrayMember} from 'sanity'
+
 import {InternationalizedInput} from '../components/InternationalizedInput'
 
 /**
@@ -60,10 +61,64 @@ export const internationalizedStringType = createInternationalizedFieldType('str
 export const internationalizedTextType = createInternationalizedFieldType('text')
 
 /**
+ * Lista di stringhe internazionalizzate indipendentemente l'una dall'altra
+ * (es. tag), dove OGNI ELEMENTO ha i propri valori per lingua — non un solo
+ * `autoI18n.string` (che aggiungerebbe tab lingua all'intera lista, non ai
+ * singoli elementi).
+ *
+ * Non è un `array` il cui `of` contiene direttamente `autoI18n.string`: Sanity
+ * non supporta un array come membro diretto di un altro array. Ogni elemento
+ * è invece un piccolo oggetto (`internationalizedListItem`) con un unico
+ * campo `value` di tipo `autoI18n.string` — l'array-dentro-array diventa così
+ * array → oggetto → array, che è una struttura dati normale.
+ *
+ * Valore salvato:
+ * [
+ *   {_key: 'k1', value: [{_key: 'it', value: 'prova'}, {_key: 'en', value: 'test'}]},
+ *   {_key: 'k2', value: [{_key: 'it', value: 'formattazione'}, ...]},
+ * ]
+ *
+ * `translationCore.ts` cerca questi campi annidati con un livello di
+ * ricorsione dedicato (vedi `findInternationalizedFieldPaths`), costruendo
+ * path Sanity tipo `tags[_key=="k1"].value`.
+ */
+export const internationalizedStringListType = defineType({
+  name: 'autoI18n.stringList',
+  title: 'Elenco di stringhe internazionalizzate',
+  type: 'array',
+  of: [
+    defineArrayMember({
+      type: 'object',
+      name: 'internationalizedListItem',
+      fields: [
+        defineField({
+          name: 'value',
+          title: 'Valore',
+          type: 'autoI18n.string',
+        }),
+      ],
+      preview: {
+        select: {value: 'value'},
+        prepare({value}) {
+          const values = Array.isArray(value) ? value : []
+          const it = values.find((v: {_key?: string}) => v._key === 'it')?.value as
+            | string
+            | undefined
+          return {title: it || values[0]?.value || '(vuoto)'}
+        },
+      },
+    }),
+  ],
+})
+
+/**
  * Variante rich-text: il valore per lingua è un array di blocchi Portable Text
- * invece di una stringa. Supporta solo blocchi di testo con decorator
- * `strong`/`em` per l'MVP (niente liste, link, o oggetti custom) — vedi
- * InternationalizedBlockContentInput per il perché di questo limite.
+ * invece di una stringa. Supporta paragrafi, titoli (H1-H4), citazioni, liste
+ * puntate/numerate, link, e i decorator grassetto/corsivo/sottolineato/barrato.
+ * Questa definizione deve restare in sincronia con lo schema dell'editor in
+ * `PortableTextTabEditor.tsx` (styles/lists/marks lì usano `name`, qui
+ * `value` — stessa lista di valori, sintassi diversa perché sono due schema
+ * provenienti da pacchetti diversi).
  */
 export const internationalizedBlockContentType = defineType({
   name: 'autoI18n.blockContent',
@@ -78,7 +133,39 @@ export const internationalizedBlockContentType = defineType({
           name: 'value',
           title: 'Valore',
           type: 'array',
-          of: [{type: 'block'}],
+          of: [
+            {
+              type: 'block',
+              styles: [
+                {title: 'Normale', value: 'normal'},
+                {title: 'Titolo 1', value: 'h1'},
+                {title: 'Titolo 2', value: 'h2'},
+                {title: 'Titolo 3', value: 'h3'},
+                {title: 'Titolo 4', value: 'h4'},
+                {title: 'Citazione', value: 'blockquote'},
+              ],
+              lists: [
+                {title: 'Puntata', value: 'bullet'},
+                {title: 'Numerata', value: 'number'},
+              ],
+              marks: {
+                decorators: [
+                  {title: 'Grassetto', value: 'strong'},
+                  {title: 'Corsivo', value: 'em'},
+                  {title: 'Sottolineato', value: 'underline'},
+                  {title: 'Barrato', value: 'strike-through'},
+                ],
+                annotations: [
+                  {
+                    name: 'link',
+                    type: 'object',
+                    title: 'Link',
+                    fields: [{name: 'href', type: 'url', title: 'URL'}],
+                  },
+                ],
+              },
+            },
+          ],
         }),
         defineField({
           name: 'sourceHash',

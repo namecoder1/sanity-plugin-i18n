@@ -1,5 +1,5 @@
-import {documentEventHandler} from '@sanity/functions'
 import {createClient} from '@sanity/client'
+import {documentEventHandler} from '@sanity/functions'
 
 const LANGUAGE_SETTINGS_DOC_ID = 'autoI18n.languageSettings'
 
@@ -58,15 +58,54 @@ function splitOuterWhitespace(text: string): {leading: string; core: string; tra
   return {leading, core, trailing}
 }
 
-function findInternationalizedFieldPaths(doc: Record<string, unknown>): string[] {
-  const paths: string[] = []
-  for (const key of Object.keys(doc)) {
-    const val = doc[key]
-    if (Array.isArray(val) && val.some((item) => item?._type === 'localeValue')) {
-      paths.push(key)
+function isLocaleValueArray(val: unknown): val is LocaleValue[] {
+  return (
+    Array.isArray(val) && val.some((item) => (item as {_type?: string})?._type === 'localeValue')
+  )
+}
+
+interface InternationalizedFieldPath {
+  /**
+   * Path in stile Sanity patch: `"title"` per un campo di primo livello,
+   * `tags[_key=="k1"].value` per un campo annidato un livello dentro un
+   * array di oggetti (es. `autoI18n.stringList`).
+   */
+  path: string
+  values: LocaleValue[]
+}
+
+/**
+ * Trova i campi internazionalizzati sia di primo livello sia annidati un
+ * livello dentro un array di oggetti (es. autoI18n.stringList). Non scende
+ * oltre un livello — vedi la stessa funzione in sanity-plugin-auto-i18n
+ * (translationCore.ts), da cui questa è copiata a mano.
+ */
+function findInternationalizedFieldPaths(
+  doc: Record<string, unknown>,
+): InternationalizedFieldPath[] {
+  const results: InternationalizedFieldPath[] = []
+
+  for (const [key, val] of Object.entries(doc)) {
+    if (isLocaleValueArray(val)) {
+      results.push({path: key, values: val})
+      continue
+    }
+    if (!Array.isArray(val)) continue
+
+    for (const item of val) {
+      if (!item || typeof item !== 'object' || !('_key' in item)) continue
+      for (const [subKey, subVal] of Object.entries(item as Record<string, unknown>)) {
+        if (isLocaleValueArray(subVal)) {
+          results.push({
+            path: `${key}[_key=="${(item as {_key: string})._key}"].${subKey}`,
+            values: subVal,
+          })
+        }
+      }
     }
   }
-  return paths
+
+  return results
 }
 
 interface PendingTranslation {
@@ -80,8 +119,7 @@ function findPendingTranslations(
   targetLangs: string[],
 ): PendingTranslation[] {
   const pending: PendingTranslation[] = []
-  for (const fieldPath of findInternationalizedFieldPaths(doc)) {
-    const values = (doc[fieldPath] as LocaleValue[]) || []
+  for (const {path, values} of findInternationalizedFieldPaths(doc)) {
     const sourceValue = values.find((v) => v._key === sourceLang)?.value
     if (!hasContent(sourceValue)) continue
 
@@ -90,7 +128,7 @@ function findPendingTranslations(
       const existing = values.find((v) => v._key === targetLang)
       const isStale = existing?.sourceHash !== sourceHash
       if (hasContent(existing?.value) && !isStale) continue
-      pending.push({fieldPath, targetLang})
+      pending.push({fieldPath: path, targetLang})
     }
   }
   return pending
@@ -197,8 +235,7 @@ async function buildTranslationPatches(
 ): Promise<Array<Record<string, unknown>>> {
   const patches: Array<Record<string, unknown>> = []
 
-  for (const fieldPath of findInternationalizedFieldPaths(doc)) {
-    const values = (doc[fieldPath] as LocaleValue[]) || []
+  for (const {path, values} of findInternationalizedFieldPaths(doc)) {
     const sourceValue = values.find((v) => v._key === sourceLang)?.value
     if (!hasContent(sourceValue)) continue
 
@@ -216,14 +253,14 @@ async function buildTranslationPatches(
       if (existing) {
         patches.push({
           set: {
-            [`${fieldPath}[_key=="${targetLang}"].value`]: translated,
-            [`${fieldPath}[_key=="${targetLang}"].sourceHash`]: sourceHash,
+            [`${path}[_key=="${targetLang}"].value`]: translated,
+            [`${path}[_key=="${targetLang}"].sourceHash`]: sourceHash,
           },
         })
       } else {
         patches.push({
           insert: {
-            after: `${fieldPath}[-1]`,
+            after: `${path}[-1]`,
             items: [{_key: targetLang, _type: 'localeValue', value: translated, sourceHash}],
           },
         })

@@ -1,7 +1,19 @@
+import type {PortableTextBlock} from '@portabletext/editor'
+import {
+  TabList,
+  Tab,
+  TabPanel,
+  Stack,
+  TextInput,
+  TextArea,
+  Box,
+  Text,
+  Flex,
+  Spinner,
+} from '@sanity/ui'
 import {useCallback, useEffect, useRef, useState} from 'react'
 import {insert, set, setIfMissing, useClient, type ArrayOfObjectsInputProps} from 'sanity'
-import {TabList, Tab, TabPanel, Stack, TextInput, TextArea, Box, Text, Flex, Spinner} from '@sanity/ui'
-import type {PortableTextBlock} from '@portabletext/editor'
+
 import {LANGUAGE_SETTINGS_DOC_ID} from '../config'
 import {PortableTextTabEditor} from './PortableTextTabEditor'
 
@@ -49,20 +61,21 @@ export function InternationalizedInput(props: ArrayOfObjectsInputProps<LocaleVal
   useEffect(() => {
     let isMounted = true
     client
-      .fetch<{supportedLanguages: LanguageEntry[]} | null>(
-        `*[_id == $id][0]{supportedLanguages}`,
-        {id: LANGUAGE_SETTINGS_DOC_ID},
-      )
+      .fetch<{supportedLanguages: LanguageEntry[]} | null>(`*[_id == $id][0]{supportedLanguages}`, {
+        id: LANGUAGE_SETTINGS_DOC_ID,
+      })
       .then((res) => {
-        if (!isMounted) return
+        if (!isMounted) return undefined
         const langs = res?.supportedLanguages || []
         setLanguages(langs)
         const defaultLang = langs.find((l) => l.isDefault)?.code || langs[0]?.code || null
         setActiveLang(defaultLang)
+        return undefined
       })
       .catch((err) => {
         console.error('[auto-i18n] Errore nel caricamento delle lingue:', err)
         if (isMounted) setLanguages([])
+        return undefined
       })
     return () => {
       isMounted = false

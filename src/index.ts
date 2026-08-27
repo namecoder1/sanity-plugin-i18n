@@ -1,15 +1,17 @@
-import {definePlugin} from 'sanity'
 import {EarthGlobeIcon} from '@sanity/icons/EarthGlobe'
+import {definePlugin} from 'sanity'
+
+import {createTranslateAction} from './actions/translateAction'
+import {LanguageSettingsTool} from './components/LanguageSettingsTool'
+import {createTranslationBanner} from './components/TranslationBanner'
 import {languageSettingsType} from './config'
 import type {AutoI18nConfig} from './config'
 import {
   internationalizedStringType,
   internationalizedTextType,
   internationalizedBlockContentType,
+  internationalizedStringListType,
 } from './schemaTypes/internationalizedField'
-import {createTranslateAction} from './actions/translateAction'
-import {createTranslationBanner} from './components/TranslationBanner'
-import {LanguageSettingsTool} from './components/LanguageSettingsTool'
 
 export type {AutoI18nConfig}
 
@@ -64,10 +66,11 @@ export const autoI18nPlugin = definePlugin<AutoI18nConfig | void>((config = {}) 
         internationalizedStringType,
         internationalizedTextType,
         internationalizedBlockContentType,
+        internationalizedStringListType,
       ],
     },
     document: {
-      actions: (prev, context) => {
+      actions: (prev) => {
         // Con provider 'azure' la traduzione non gira nel browser (la key non
         // può starci): la fa una Sanity Function al salvataggio. L'azione
         // manuale non avrebbe nulla da eseguire, quindi non la registriamo.

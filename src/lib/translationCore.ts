@@ -1,5 +1,6 @@
-import type {SanityClient} from 'sanity'
 import type {PortableTextBlock} from '@portabletext/editor'
+import type {SanityClient} from 'sanity'
+
 import {LANGUAGE_SETTINGS_DOC_ID} from '../config'
 import type {AutoI18nConfig} from '../config'
 import type {TranslationProvider} from './providers/types'
@@ -91,25 +92,63 @@ async function translateBlocks(
       translatedChildren.push({...child, text: leading + translatedCore + trailing})
     }
 
-    translatedBlocks.push({...block, children: translatedChildren} as PortableTextBlock)
+    translatedBlocks.push({...block, children: translatedChildren})
   }
 
   return translatedBlocks
 }
 
+function isLocaleValueArray(val: unknown): val is LocaleValue[] {
+  return (
+    Array.isArray(val) && val.some((item) => (item as {_type?: string})?._type === 'localeValue')
+  )
+}
+
+export interface InternationalizedFieldPath {
+  /**
+   * Path in stile Sanity patch: `"title"` per un campo di primo livello,
+   * `tags[_key=="k1"].value` per un campo annidato un livello dentro un
+   * array di oggetti (es. `autoI18n.stringList`).
+   */
+  path: string
+  /** L'array di localeValue trovato in quel punto del documento. */
+  values: LocaleValue[]
+}
+
 /**
  * Trova tutti i campi internazionalizzati (array con _type 'localeValue')
- * dentro il documento e ritorna i loro path.
+ * dentro il documento, sia di primo livello (title, body, ...) sia annidati
+ * UN livello dentro un array di oggetti (es. `autoI18n.stringList`: ogni tag
+ * ha il proprio `value: [{_key:'it', ...}, ...]`). Non scende oltre un
+ * livello: sufficiente per "lista di valori tradotti singolarmente", non
+ * pensato per strutture innestate più a fondo.
  */
-export function findInternationalizedFieldPaths(doc: Record<string, unknown>): string[] {
-  const paths: string[] = []
-  for (const key of Object.keys(doc)) {
-    const val = doc[key]
-    if (Array.isArray(val) && val.some((item) => item?._type === 'localeValue')) {
-      paths.push(key)
+export function findInternationalizedFieldPaths(
+  doc: Record<string, unknown>,
+): InternationalizedFieldPath[] {
+  const results: InternationalizedFieldPath[] = []
+
+  for (const [key, val] of Object.entries(doc)) {
+    if (isLocaleValueArray(val)) {
+      results.push({path: key, values: val})
+      continue
+    }
+    if (!Array.isArray(val)) continue
+
+    for (const item of val) {
+      if (!item || typeof item !== 'object' || !('_key' in item)) continue
+      for (const [subKey, subVal] of Object.entries(item as Record<string, unknown>)) {
+        if (isLocaleValueArray(subVal)) {
+          results.push({
+            path: `${key}[_key=="${(item as {_key: string})._key}"].${subKey}`,
+            values: subVal,
+          })
+        }
+      }
     }
   }
-  return paths
+
+  return results
 }
 
 export interface PendingTranslation {
@@ -129,12 +168,9 @@ export function findPendingTranslations(
   targetLangs: string[],
 ): PendingTranslation[] {
   const pending: PendingTranslation[] = []
-  const fieldPaths = findInternationalizedFieldPaths(doc)
 
-  for (const fieldPath of fieldPaths) {
-    const values = (doc[fieldPath] as LocaleValue[]) || []
-    const sourceEntry = values.find((v) => v._key === sourceLang)
-    const sourceValue = sourceEntry?.value
+  for (const {path, values} of findInternationalizedFieldPaths(doc)) {
+    const sourceValue = values.find((v) => v._key === sourceLang)?.value
     if (!hasContent(sourceValue)) continue
 
     const sourceHash = hashSourceValue(sourceValue as string | PortableTextBlock[])
@@ -143,7 +179,7 @@ export function findPendingTranslations(
       const existing = values.find((v) => v._key === targetLang)
       const isStale = existing?.sourceHash !== sourceHash
       if (hasContent(existing?.value) && !isStale) continue
-      pending.push({fieldPath, targetLang})
+      pending.push({fieldPath: path, targetLang})
     }
   }
 
@@ -183,12 +219,9 @@ export async function buildTranslationPatches(
   provider: TranslationProvider,
 ): Promise<any[]> {
   const patches: any[] = []
-  const fieldPaths = findInternationalizedFieldPaths(doc)
 
-  for (const fieldPath of fieldPaths) {
-    const values = (doc[fieldPath] as LocaleValue[]) || []
-    const sourceEntry = values.find((v) => v._key === sourceLang)
-    const sourceValue = sourceEntry?.value
+  for (const {path, values} of findInternationalizedFieldPaths(doc)) {
+    const sourceValue = values.find((v) => v._key === sourceLang)?.value
     if (!hasContent(sourceValue)) continue
 
     const sourceHash = hashSourceValue(sourceValue as string | PortableTextBlock[])
@@ -213,14 +246,14 @@ export async function buildTranslationPatches(
         // (che non fa nulla se il campo è già presente, anche se vuoto/obsoleto).
         patches.push({
           set: {
-            [`${fieldPath}[_key=="${targetLang}"].value`]: translated,
-            [`${fieldPath}[_key=="${targetLang}"].sourceHash`]: sourceHash,
+            [`${path}[_key=="${targetLang}"].value`]: translated,
+            [`${path}[_key=="${targetLang}"].sourceHash`]: sourceHash,
           },
         })
       } else {
         patches.push({
           insert: {
-            after: `${fieldPath}[-1]`,
+            after: `${path}[-1]`,
             items: [{_key: targetLang, _type: 'localeValue', value: translated, sourceHash}],
           },
         })

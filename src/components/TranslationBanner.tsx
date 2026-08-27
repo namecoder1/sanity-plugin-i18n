@@ -1,16 +1,17 @@
+import {TranslateIcon} from '@sanity/icons/Translate'
+import {Card, Flex, Text, Button} from '@sanity/ui'
+import {useToast} from '@sanity/ui/toast'
 import {useEffect, useState} from 'react'
 import {useClient, useDocumentOperation, useEditState} from 'sanity'
 import type {DocumentLayoutProps} from 'sanity'
-import {useToast} from '@sanity/ui/toast'
-import {Card, Flex, Text, Button} from '@sanity/ui'
-import {TranslateIcon} from '@sanity/icons/Translate'
+
+import type {AutoI18nConfig} from '../config'
+import {createMyMemoryProvider} from '../lib/providers/mymemory'
 import {
   buildTranslationPatches,
   fetchLanguageSettings,
   findPendingTranslations,
 } from '../lib/translationCore'
-import {createMyMemoryProvider} from '../lib/providers/mymemory'
-import type {AutoI18nConfig} from '../config'
 
 const API_VERSION = '2023-01-01'
 
@@ -45,20 +46,24 @@ export function createTranslationBanner(config: AutoI18nConfig) {
 
     useEffect(() => {
       let cancelled = false
-      if (!doc) {
+
+      if (doc) {
+        fetchLanguageSettings(client, config)
+          .then(({sourceLang, targetLangs}) => {
+            if (cancelled) return undefined
+            setPendingCount(findPendingTranslations(doc, sourceLang, targetLangs).length)
+            return undefined
+          })
+          .catch(() => {
+            // Nessuna lingua configurata o errore di rete: niente barra, l'azione
+            // in toolbar resta comunque disponibile e mostra l'errore esplicito.
+            if (!cancelled) setPendingCount(null)
+            return undefined
+          })
+      } else {
         setPendingCount(null)
-        return
       }
-      fetchLanguageSettings(client, config)
-        .then(({sourceLang, targetLangs}) => {
-          if (cancelled) return
-          setPendingCount(findPendingTranslations(doc, sourceLang, targetLangs).length)
-        })
-        .catch(() => {
-          // Nessuna lingua configurata o errore di rete: niente barra, l'azione
-          // in toolbar resta comunque disponibile e mostra l'errore esplicito.
-          if (!cancelled) setPendingCount(null)
-        })
+
       return () => {
         cancelled = true
       }

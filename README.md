@@ -1,6 +1,5 @@
 # sanity-plugin-auto-i18n
 
-
 ## Installation
 
 ```sh
@@ -33,16 +32,17 @@ Usa i tipi `autoI18n.string` / `autoI18n.text` / `autoI18n.blockContent` al post
 ```ts
 defineField({name: 'title', type: 'autoI18n.string'})
 defineField({name: 'excerpt', type: 'autoI18n.text'})
-defineField({name: 'body', type: 'autoI18n.blockContent'}) // rich text (grassetto/corsivo)
+defineField({name: 'body', type: 'autoI18n.blockContent'}) // rich text
 ```
 
 Ognuno di questi campi salva un array `[{_key: 'it', value: '...'}, {_key: 'en', value: '...'}]`
 invece di un valore singolo — un tab per lingua nell'editor dello Studio, gestito
 automaticamente dal plugin.
 
-`autoI18n.blockContent` supporta solo paragrafi con grassetto/corsivo (niente liste, link,
-o oggetti custom) — è un MVP pensato per accompagnarsi alla traduzione automatica span-per-span
-(vedi "Limiti noti" più sotto).
+`autoI18n.blockContent` supporta paragrafi, titoli (H1-H4), citazioni, liste puntate/numerate,
+link, e i decorator grassetto/corsivo/sottolineato/barrato — non oggetti custom o blocchi
+non testuali (immagini, ecc., se già presenti nel documento restano intoccati dalla
+traduzione, vedi "Limiti noti" più sotto).
 
 ## Come si traduce
 
@@ -116,8 +116,13 @@ configurazione" come MyMemory: se stai solo provando il plugin, parti da MyMemor
   traducono solo testo semplice, ogni "span" di un blocco Portable Text viene tradotto
   separatamente. Questo può ridurre la fluidità quando una frase è spezzata da formattazione
   inline (es. "il **gatto** nero" tradotto in due chiamate separate invece di una frase intera).
-- **`autoI18n.blockContent` è un MVP**: solo paragrafi con grassetto/corsivo, niente liste,
-  link, o oggetti custom.
+- **`autoI18n.blockContent` non supporta oggetti custom**: solo blocchi di testo (paragrafi,
+  titoli, citazioni, liste) con decorator/link — niente immagini inline, code block, o altri
+  block object personalizzati dentro il campo tradotto. Se il tuo blockContent standard ne ha
+  bisogno, tienili fuori da `autoI18n.blockContent` o gestiscili in un campo separato.
+- **Il link nell'editor si crea con un prompt del browser** (`window.prompt`), non un vero
+  dialog — semplice ma poco raffinato: nessuna validazione dell'URL, nessuna modifica di un
+  link esistente se non rimuoverlo e ricrearlo.
 
 ## License
 
@@ -130,3 +135,10 @@ with default configuration for build & watch scripts.
 
 See [Testing a plugin in Sanity Studio](https://github.com/sanity-io/plugins/tree/main/packages/@sanity/plugin-kit#testing-a-plugin-in-sanity-studio)
 on how to run this plugin with hotreload in the studio.
+
+### Release new version
+
+Run ["CI & Release" workflow](https://github.com/namecoder1/sanity-plugin-auto-i18n/actions/workflows/main.yml).
+Make sure to select the main branch and check "Release new version".
+
+Semantic release will only release on configured branches, so it is safe to run release on any branch.

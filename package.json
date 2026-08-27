@@ -1,15 +1,31 @@
 {
   "name": "sanity-plugin-auto-i18n",
   "version": "1.0.0",
-  "description": "",
+  "description": "Internationalized string/text/blockContent field types for Sanity Studio, with automatic translation via MyMemory or Azure Translator.",
   "keywords": [
+    "i18n",
+    "internationalization",
+    "l10n",
     "sanity",
-    "sanity-plugin"
+    "sanity-plugin",
+    "translation"
   ],
+  "homepage": "https://github.com/namecoder1/sanity-plugin-auto-i18n#readme",
+  "bugs": {
+    "url": "https://github.com/namecoder1/sanity-plugin-auto-i18n/issues"
+  },
   "license": "MIT",
   "author": "tobi <bartolomei.private@gmail.com>",
-  "sideEffects": false,
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/namecoder1/sanity-plugin-auto-i18n.git"
+  },
+  "files": [
+    "dist"
+  ],
   "type": "module",
+  "sideEffects": false,
+  "types": "./dist/index.d.ts",
   "exports": {
     ".": {
       "source": "./src/index.ts",
@@ -17,16 +33,21 @@
     },
     "./package.json": "./package.json"
   },
-  "types": "./dist/index.d.ts",
-  "files": [
-    "dist"
-  ],
+  "publishConfig": {
+    "exports": {
+      ".": "./dist/index.js",
+      "./package.json": "./package.json"
+    }
+  },
   "scripts": {
     "build": "plugin-kit verify-package --silent && pkg-utils build --strict --check --clean",
     "format": "oxfmt",
     "link-watch": "plugin-kit link-watch",
     "lint": "oxlint",
+    "prepare": "husky",
     "prepublishOnly": "npm run build",
+    "test": "vitest run",
+    "test:watch": "vitest",
     "watch": "pkg-utils watch --strict"
   },
   "dependencies": {
@@ -35,9 +56,14 @@
     "@sanity/ui": "^4.0.6"
   },
   "devDependencies": {
+    "@commitlint/cli": "^21.2.2",
+    "@commitlint/config-conventional": "^21.2.2",
     "@sanity/pkg-utils": "^12.3.0",
     "@sanity/plugin-kit": "^10.0.8",
+    "@sanity/semantic-release-preset": "^6.0.0",
     "@types/react": "^19.2.18",
+    "husky": "^9.1.7",
+    "lint-staged": "^17.4.1",
     "oxfmt": "^0.63.0",
     "oxlint": "^1.79.0",
     "oxlint-tsgolint": "^7.0.2001",
@@ -45,7 +71,8 @@
     "react-dom": "^19.2.8",
     "sanity": "^6.10.1",
     "styled-components": "^6.5.3",
-    "typescript": "^6.0.3"
+    "typescript": "^6.0.3",
+    "vitest": "^4.1.11"
   },
   "peerDependencies": {
     "react": "^18",
@@ -57,12 +84,6 @@
   "sanityPlugin": {
     "verifyPackage": {
       "tsconfig": false
-    }
-  },
-  "publishConfig": {
-    "exports": {
-      ".": "./dist/index.js",
-      "./package.json": "./package.json"
     }
   }
 }
