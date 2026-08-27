@@ -1,5 +1,5 @@
 {
-  "name": "sanity-plugin-auto-i18n",
+  "name": "sanity-plugin-i18n",
   "version": "1.0.0",
   "description": "Internationalized string/text/blockContent field types for Sanity Studio, with automatic translation via MyMemory or Azure Translator.",
   "keywords": [
@@ -10,15 +10,15 @@
     "sanity-plugin",
     "translation"
   ],
-  "homepage": "https://github.com/namecoder1/sanity-plugin-auto-i18n#readme",
+  "homepage": "https://github.com/namecoder1/sanity-plugin-i18n#readme",
   "bugs": {
-    "url": "https://github.com/namecoder1/sanity-plugin-auto-i18n/issues"
+    "url": "https://github.com/namecoder1/sanity-plugin-i18n/issues"
   },
   "license": "MIT",
   "author": "tobi <bartolomei.private@gmail.com>",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/namecoder1/sanity-plugin-auto-i18n.git"
+    "url": "git+https://github.com/namecoder1/sanity-plugin-i18n.git"
   },
   "files": [
     "dist"

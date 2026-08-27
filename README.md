@@ -1,9 +1,9 @@
-# sanity-plugin-auto-i18n
+# sanity-plugin-i18n
 
 ## Installation
 
 ```sh
-npm install sanity-plugin-auto-i18n
+npm install sanity-plugin-i18n
 ```
 
 ## Usage
@@ -12,7 +12,7 @@ Add it as a plugin in `sanity.config.ts` (or .js):
 
 ```ts
 import {defineConfig} from 'sanity'
-import {autoI18nPlugin} from 'sanity-plugin-auto-i18n'
+import {autoI18nPlugin} from 'sanity-plugin-i18n'
 
 export default defineConfig({
   //...
@@ -138,7 +138,7 @@ on how to run this plugin with hotreload in the studio.
 
 ### Release new version
 
-Run ["CI & Release" workflow](https://github.com/namecoder1/sanity-plugin-auto-i18n/actions/workflows/main.yml).
+Run ["CI & Release" workflow](https://github.com/namecoder1/sanity-plugin-i18n/actions/workflows/main.yml).
 Make sure to select the main branch and check "Release new version".
 
 Semantic release will only release on configured branches, so it is safe to run release on any branch.

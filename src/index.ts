@@ -39,7 +39,7 @@ export type {AzureProviderOptions} from './lib/providers/azure'
  *
  * ```ts
  * import {defineConfig} from 'sanity'
- * import {autoI18nPlugin} from 'sanity-plugin-auto-i18n'
+ * import {autoI18nPlugin} from 'sanity-plugin-i18n'
  *
  * export default defineConfig({
  *   // ...
@@ -59,7 +59,7 @@ export const autoI18nPlugin = definePlugin<AutoI18nConfig | void>((config = {}) 
   const resolvedConfig: AutoI18nConfig = config || {}
 
   return {
-    name: 'sanity-plugin-auto-i18n',
+    name: 'sanity-plugin-i18n',
     schema: {
       types: [
         languageSettingsType,

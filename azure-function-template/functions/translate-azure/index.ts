@@ -25,7 +25,7 @@ interface PortableTextBlockLike {
 // ────────────────────────────────────────────────────────────────────────
 // Tutto quello che segue, fino a "Provider Azure", è una copia deliberata
 // della logica "pura" (nessuna dipendenza da 'sanity'/browser) che vive in
-// sanity-plugin-auto-i18n/src/lib/translationCore.ts. Non è importata da lì
+// sanity-plugin-i18n/src/lib/translationCore.ts. Non è importata da lì
 // perché il plugin non è pubblicato su npm: le Sanity Function si compilano
 // sui server di Sanity, che non hanno accesso al filesystem locale (yalc/file:
 // non funzionano qui). Se in futuro il plugin viene pubblicato su npm, questa
@@ -77,7 +77,7 @@ interface InternationalizedFieldPath {
 /**
  * Trova i campi internazionalizzati sia di primo livello sia annidati un
  * livello dentro un array di oggetti (es. autoI18n.stringList). Non scende
- * oltre un livello — vedi la stessa funzione in sanity-plugin-auto-i18n
+ * oltre un livello — vedi la stessa funzione in sanity-plugin-i18n
  * (translationCore.ts), da cui questa è copiata a mano.
  */
 function findInternationalizedFieldPaths(
