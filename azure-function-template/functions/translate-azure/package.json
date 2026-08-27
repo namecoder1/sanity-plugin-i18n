@@ -1,0 +1,9 @@
+{
+  "name": "translate-azure",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "@sanity/functions": "^1.1.0",
+    "@sanity/client": "^7.12.0"
+  }
+}

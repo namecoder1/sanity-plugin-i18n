@@ -1,0 +1,16 @@
+import {defineBlueprint, defineDocumentFunction} from '@sanity/blueprints'
+
+export default defineBlueprint({
+  resources: [
+    defineDocumentFunction({
+      name: 'translate-azure',
+      event: {
+        on: ['create', 'update'],
+        // Esclude solo il singleton di configurazione: gira su tutti gli
+        // altri tipi documento. Se in futuro serve limitarla (es. solo
+        // 'post'), basta stringere questo filtro.
+        filter: '_type != "autoI18n.languageSettings"',
+      },
+    }),
+  ],
+})
