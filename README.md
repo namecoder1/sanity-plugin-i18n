@@ -18,16 +18,16 @@ export default defineConfig({
   //...
   plugins: [
     autoI18nPlugin({
-      apiKey: process.env.SANITY_STUDIO_MYMEMORY_KEY, // opzionale
-      email: 'tuo@email.com', // opzionale, alza il rate limit di MyMemory
-      defaultSourceLanguage: 'it', // fallback se nessuna lingua è marcata come sorgente
+      apiKey: process.env.SANITY_STUDIO_MYMEMORY_KEY, // optional
+      email: 'you@email.com', // optional, raises the MyMemory rate limit
+      defaultSourceLanguage: 'en', // fallback if no language is marked as source
     }),
   ],
 })
 ```
 
-Usa i tipi `autoI18n.string` / `autoI18n.text` / `autoI18n.blockContent` al posto di
-`string` / `text` / array di blocchi Portable Text nei tuoi schema:
+Use the `autoI18n.string` / `autoI18n.text` / `autoI18n.blockContent` types instead of
+`string` / `text` / a Portable Text block array in your schemas:
 
 ```ts
 defineField({name: 'title', type: 'autoI18n.string'})
@@ -35,94 +35,95 @@ defineField({name: 'excerpt', type: 'autoI18n.text'})
 defineField({name: 'body', type: 'autoI18n.blockContent'}) // rich text
 ```
 
-Ognuno di questi campi salva un array `[{_key: 'it', value: '...'}, {_key: 'en', value: '...'}]`
-invece di un valore singolo — un tab per lingua nell'editor dello Studio, gestito
-automaticamente dal plugin.
+Each of these fields stores an array `[{_key: 'en', value: '...'}, {_key: 'fr', value: '...'}]`
+instead of a single value — one tab per language in the Studio editor, handled automatically
+by the plugin.
 
-`autoI18n.blockContent` supporta paragrafi, titoli (H1-H4), citazioni, liste puntate/numerate,
-link, e i decorator grassetto/corsivo/sottolineato/barrato — non oggetti custom o blocchi
-non testuali (immagini, ecc., se già presenti nel documento restano intoccati dalla
-traduzione, vedi "Limiti noti" più sotto).
+`autoI18n.blockContent` supports paragraphs, headings (H1-H4), quotes, bulleted/numbered
+lists, links, and the bold/italic/underline/strike-through decorators — not custom objects
+or non-text blocks (images, etc. already present in the document are left untouched by
+translation, see "Known limitations" below).
 
-## Come si traduce
+## How translation works
 
-Il plugin aggiunge due modi per lanciare la traduzione automatica (fanno la stessa cosa,
-ridondanti apposta perché il primo è facile da non notare):
+The plugin adds two ways to trigger automatic translation (they do the same thing,
+deliberately redundant because the first one is easy to miss):
 
-- **Azione "Traduci mancanti"** nella toolbar del documento, subito accanto a "Pubblica".
-- **Banner** in cima al form del documento, quando ci sono campi mancanti o da aggiornare,
-  con un pulsante "Traduci ora".
+- A **"Translate missing"** action in the document toolbar, right next to "Publish".
+- A **banner** at the top of the document form, shown whenever fields are missing or
+  outdated, with a "Translate now" button.
 
-Entrambi traducono dalla lingua sorgente verso tutte le altre lingue configurate, **saltando
-i campi che hanno già una traduzione aggiornata** — se modifichi il testo sorgente dopo aver
-già tradotto, il plugin se ne accorge da solo e ritraduce solo quel campo al prossimo click
-(non tocca le lingue non toccate, né le traduzioni che hai modificato a mano e che nel
-frattempo il sorgente non ha più cambiato).
+Both translate from the source language to every other configured language, **skipping
+fields that already have an up-to-date translation** — if you edit the source text after
+already translating, the plugin notices on its own and only re-translates that field on
+the next click (it leaves untouched languages, and translations you edited by hand whose
+source hasn't changed since, alone).
 
-Con `provider: 'azure'` (vedi sotto) questi due controlli spariscono: la traduzione non gira
-più nel browser, ma automaticamente al salvataggio, via una Sanity Function.
+With `provider: 'azure'` (see below) these two controls disappear: translation no longer
+runs in the browser, but automatically on save, via a Sanity Function.
 
-### Configurare le lingue (sorgente e traduzioni automatiche)
+### Configuring languages (source and automatic translations)
 
-Il plugin aggiunge una voce **"Impostazioni Lingue"** nella nav bar dello Studio. Da lì si apre
-un documento singleton con un array `supportedLanguages`, dove ogni riga ha:
+The plugin adds an **"Language Settings"** entry to the Studio nav bar. From there you
+open a singleton document with a `supportedLanguages` array, where each row has:
 
-- `code`: il codice lingua (es. `it`, `en`, `de`) — deve corrispondere alle chiavi usate nei
-  campi internazionalizzati;
-- `label`: l'etichetta visibile nei tab dell'editor;
-- `isDefault`: **spunta questa casella su una sola lingua** — è la lingua sorgente, quella da
-  cui si parte per tradurre.
+- `code`: the language code (e.g. `en`, `fr`, `de`) — must match the keys used in
+  internationalized fields;
+- `label`: the label shown on the editor tabs;
+- `isDefault`: **check this on exactly one language** — it's the source language,
+  the one translation starts from.
 
-Tutte le altre lingue nell'array diventano automaticamente le lingue "target": quando premi
-**"Traduci mancanti"** su un documento, il plugin traduce dalla lingua sorgente verso ognuna
-delle altre lingue elencate, saltando quelle che hanno già un valore.
+Every other language in the array automatically becomes a "target" language: when you
+click **"Translate missing"** on a document, the plugin translates from the source
+language to each of the other listed languages, skipping ones that already have a value.
 
-Se nessuna lingua ha `isDefault: true`, viene usato `defaultSourceLanguage` passato in
-configurazione (o `it` come ultimo fallback).
+If no language has `isDefault: true`, the `defaultSourceLanguage` passed in the config
+is used instead (or `en` as a last-resort fallback).
 
-## Motore di traduzione: MyMemory (default) o Azure Translator
+## Translation engine: MyMemory (default) or Azure Translator
 
 ```ts
 autoI18nPlugin({
-  provider: 'mymemory', // default — non serve scriverlo esplicitamente
-  apiKey: process.env.SANITY_STUDIO_MYMEMORY_KEY, // opzionale
-  email: 'tuo@email.com', // opzionale, alza il rate limit di MyMemory
+  provider: 'mymemory', // default — no need to set it explicitly
+  apiKey: process.env.SANITY_STUDIO_MYMEMORY_KEY, // optional
+  email: 'you@email.com', // optional, raises the MyMemory rate limit
 })
 ```
 
-**MyMemory** (default) — chiamato direttamente dal browser, funziona subito senza nessuna
-configurazione aggiuntiva. Nessuna infrastruttura da creare o mantenere. Consigliato per
-iniziare, per progetti piccoli, o se non vuoi gestire un account Azure.
+**MyMemory** (default) — called directly from the browser, works out of the box with no
+extra configuration. No infrastructure to set up or maintain. Recommended to get started,
+for small projects, or if you don't want to manage an Azure account.
 
-**Azure Translator** (`provider: 'azure'`) — qualità di traduzione nettamente superiore (un
-vero motore di machine translation, non una translation memory — vedi "Limiti noti"), ma
-**richiede infrastruttura aggiuntiva**: la subscription key di Azure non può stare nel bundle
-browser dello Studio, quindi la traduzione gira in una Sanity Function server-side che si
-attiva da sola al salvataggio. Vedi la guida completa passo-passo in
-[`azure-function-template/README.md`](./azure-function-template/README.md) — richiede un
-account Azure (tier gratuito disponibile), qualche comando da terminale (`sanity blueprints`),
-e copiare un paio di file nel repo del tuo Studio. Non è complicato, ma non è "zero
-configurazione" come MyMemory: se stai solo provando il plugin, parti da MyMemory.
+**Azure Translator** (`provider: 'azure'`) — noticeably better translation quality (a real
+machine translation engine, not a translation memory — see "Known limitations"), but
+**requires extra infrastructure**: the Azure subscription key can't live in the Studio's
+browser bundle, so translation runs in a server-side Sanity Function that fires on its own
+whenever a document is saved. See the full step-by-step guide in
+[`azure-function-template/README.md`](./azure-function-template/README.md) — it requires an
+Azure account (a free tier is available), a few terminal commands (`sanity blueprints`),
+and copying a couple of files into your Studio repo. Not complicated, but not "zero
+config" like MyMemory: if you're just trying out the plugin, start with MyMemory.
 
-## Limiti noti
+## Known limitations
 
-- **MyMemory è una translation memory, non un vero motore di traduzione**: restituisce la
-  frase più simile nel suo database (spesso libri, paper accademici). Su testo breve o
-  generico può occasionalmente restituire frammenti estranei del contesto originale (es. una
-  citazione bibliografica). Il plugin filtra i risultati più sospetti (punteggio di qualità
-  basso, lunghezza anomala) ma non è una garanzia assoluta — con Azure Translator questo non
-  succede.
-- **Traduzione span-per-span nel rich text**: per preservare grassetto/corsivo con API che
-  traducono solo testo semplice, ogni "span" di un blocco Portable Text viene tradotto
-  separatamente. Questo può ridurre la fluidità quando una frase è spezzata da formattazione
-  inline (es. "il **gatto** nero" tradotto in due chiamate separate invece di una frase intera).
-- **`autoI18n.blockContent` non supporta oggetti custom**: solo blocchi di testo (paragrafi,
-  titoli, citazioni, liste) con decorator/link — niente immagini inline, code block, o altri
-  block object personalizzati dentro il campo tradotto. Se il tuo blockContent standard ne ha
-  bisogno, tienili fuori da `autoI18n.blockContent` o gestiscili in un campo separato.
-- **Il link nell'editor si crea con un prompt del browser** (`window.prompt`), non un vero
-  dialog — semplice ma poco raffinato: nessuna validazione dell'URL, nessuna modifica di un
-  link esistente se non rimuoverlo e ricrearlo.
+- **MyMemory is a translation memory, not a real translation engine**: it returns the
+  closest match in its database (often extracted from books, academic papers). On short
+  or generic text, it can occasionally return fragments unrelated to your source (e.g. a
+  bibliographic citation). The plugin filters out the most suspicious results (low
+  quality score, anomalous length), but it's not an absolute guarantee — this doesn't
+  happen with Azure Translator.
+- **Span-by-span translation in rich text**: to preserve bold/italic with APIs that only
+  translate plain text, every "span" in a Portable Text block is translated separately.
+  This can reduce fluency when a sentence is split by inline formatting (e.g. "the
+  **black** cat" translated in two separate calls instead of as one full sentence).
+- **`autoI18n.blockContent` doesn't support custom objects**: only text blocks
+  (paragraphs, headings, quotes, lists) with decorators/links — no inline images, code
+  blocks, or other custom block objects inside the translated field. If your regular
+  block content needs those, keep them out of `autoI18n.blockContent` or handle them in
+  a separate field.
+- **Links in the editor are created via a browser prompt** (`window.prompt`), not a real
+  dialog — simple but unpolished: no URL validation, and editing an existing link means
+  removing and re-creating it rather than editing it in place.
 
 ## License
 
@@ -138,7 +139,7 @@ on how to run this plugin with hotreload in the studio.
 
 ### Release new version
 
-Run ["CI & Release" workflow](https://github.com/namecoder1/sanity-plugin-i18n/actions/workflows/main.yml).
+Run the ["CI & Release" workflow](https://github.com/namecoder1/sanity-plugin-i18n/actions/workflows/main.yml).
 Make sure to select the main branch and check "Release new version".
 
 Semantic release will only release on configured branches, so it is safe to run release on any branch.

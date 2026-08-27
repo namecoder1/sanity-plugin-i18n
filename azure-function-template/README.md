@@ -1,48 +1,49 @@
-# Template: traduzione automatica via Azure Translator
+# Template: automatic translation via Azure Translator
 
-`provider: 'azure'` nel plugin **non traduce da solo**. La subscription key di Azure
-Translator non deve mai finire nel bundle browser dello Studio (chiunque apra lo Studio
-la vedrebbe nelle richieste di rete), quindi la traduzione deve girare **server-side**,
-in una [Sanity Function](https://www.sanity.io/docs/blueprints) che si attiva da sola
-ogni volta che un documento viene creato o aggiornato.
+`provider: 'azure'` in the plugin **does not translate by itself**. The Azure Translator
+subscription key must never end up in the Studio's browser bundle (anyone opening the
+Studio would see it in network requests), so translation has to run **server-side**, in
+a [Sanity Function](https://www.sanity.io/docs/blueprints) that fires on its own every
+time a document is created or updated.
 
-Questa cartella è il codice pronto all'uso di quella Function. Non fa parte del pacchetto
-npm del plugin (le Sanity Function si compilano sui server di Sanity, che non hanno
-accesso al tuo `node_modules`/pacchetti locali non pubblicati) — va **copiata dentro il
-tuo Studio** e deployata con la tua identità Sanity + la tua key Azure.
+This folder is the ready-to-use code for that Function. It's not part of the plugin's npm
+package (Sanity Functions are built on Sanity's own servers, which don't have access to
+your local `node_modules`/unpublished packages) — it needs to be **copied into your
+Studio** and deployed with your own Sanity identity and Azure key.
 
-Se usi solo MyMemory (il provider di default) **non ti serve nulla di tutto questo** —
-salta questa cartella, il bottone "Traduci mancanti" e il banner funzionano già da soli.
+If you're only using MyMemory (the default provider) **you don't need any of this** —
+skip this folder, the "Translate missing" button and the banner already work on their own.
 
-## 1. Crea una risorsa Azure Translator
+## 1. Create an Azure Translator resource
 
-Sul [portale Azure](https://portal.azure.com): crea una risorsa "Translator" (il tier
-gratuito esiste ed è sufficiente per iniziare). Una volta creata, vai su
-**Keys and Endpoint** e prendi nota di:
+On the [Azure portal](https://portal.azure.com): create a "Translator" resource (a free
+tier exists and is enough to get started). Once created, go to **Keys and Endpoint** and
+note down:
 
-- **KEY 1** (va bene una delle due — KEY 2 è solo un duplicato per ruotarle senza downtime)
-- **Region**, es. `italynorth` — scrivila esattamente come appare, minuscola e senza spazi
+- **KEY 1** (either key works — KEY 2 is just a duplicate for rotating without downtime)
+- **Region**, e.g. `westeurope` — write it exactly as it appears, lowercase, no spaces
 
-## 2. Copia i file nel tuo Studio
+## 2. Copy the files into your Studio
 
-Copia `functions/translate-azure/` e `sanity.blueprint.ts.example` (rinominandolo
-`sanity.blueprint.ts`) **nella radice del repo del tuo Studio** — non dentro `src/`,
-allo stesso livello di `sanity.config.ts`.
+Copy `functions/translate-azure/` and `sanity.blueprint.ts.example` (renaming it to
+`sanity.blueprint.ts`) **into the root of your Studio repo** — not inside `src/`, at the
+same level as `sanity.config.ts`.
 
-Se il tuo Studio è già dentro una sottocartella di un monorepo (es. `apps/studio/`),
-metti `sanity.blueprint.ts` e `functions/` un livello sopra, non dentro. Se invece il tuo
-Studio è alla radice del repo (il caso più comune per un progetto singolo) va bene
-metterli lì insieme: al deploy vedrai un avviso —
+If your Studio already lives inside a subfolder of a monorepo (e.g. `apps/studio/`), put
+`sanity.blueprint.ts` and `functions/` one level above it, not inside it. If instead your
+Studio is at the root of the repo (the most common case for a single-project setup), it's
+fine to put them there together: on deploy you'll see a notice —
 
 ```
 Notice
  Blueprint should not be co-located with a Sanity Studio.
 ```
 
-— è **atteso e innocuo** in questo caso: è un consiglio di Sanity per chi gestisce più
-progetti (studio, frontend, functions) nello stesso monorepo, non un errore. Ignoralo pure.
+— this is **expected and harmless** in that case: it's Sanity's advice for people managing
+multiple projects (studio, frontend, functions) in the same monorepo, not an error. Feel
+free to ignore it.
 
-## 3. Installa le dipendenze della function
+## 3. Install the function's dependencies
 
 ```sh
 cd functions/translate-azure
@@ -50,89 +51,91 @@ npm install
 cd ../..
 ```
 
-Passaggio facile da dimenticare: senza questo, il deploy fallisce con un errore tipo
-`Rolldown failed to resolve import "@sanity/functions"` — la function ha il suo
-`package.json` separato da quello dello Studio, con le sue dipendenze da installare a parte.
+Easy to forget: without this, the deploy fails with an error like `Rolldown failed to
+resolve import "@sanity/functions"` — the function has its own `package.json`, separate
+from the Studio's, with its own dependencies to install.
 
-## 4. Inizializza il Blueprint (una volta sola)
-
-```sh
-npx sanity@latest blueprints init . --type ts --stack-name production --project-id <il-tuo-project-id>
-```
-
-Ti chiederà conferma/login se non sei già autenticato. Questo crea uno "Stack" — lo stato
-remoto deployato — collegato al tuo progetto Sanity. Non modifica ancora nulla di visibile.
-
-## 5. Deploy (crea davvero la Function)
+## 4. Initialize the Blueprint (once)
 
 ```sh
-npx sanity@latest blueprints plan     # anteprima, sicuro, non tocca nulla
-npx sanity@latest blueprints deploy   # applica per davvero
+npx sanity@latest blueprints init . --type ts --stack-name production --project-id <your-project-id>
 ```
 
-**Solo dopo che il deploy è completato** la Function esiste come risorsa remota — è
-importante fare deploy PRIMA di impostare i secret al passo successivo, altrimenti
-`functions env add` risponde `Error: Unable to find function`.
+It'll prompt you to confirm/log in if you're not already authenticated. This creates a
+"Stack" — the deployed remote state — linked to your Sanity project. It doesn't change
+anything visible yet.
 
-La Function funziona già a questo punto, anche senza i secret: semplicemente registra un
-log di errore ("AZURE_TRANSLATOR_KEY non impostata") e non fa nulla, senza rompere niente.
-
-## 6. Imposta i secret
+## 5. Deploy (actually creates the Function)
 
 ```sh
-npx sanity@latest functions env add translate-azure AZURE_TRANSLATOR_KEY <la-tua-KEY-1>
-npx sanity@latest functions env add translate-azure AZURE_TRANSLATOR_REGION <la-tua-region>
+npx sanity@latest blueprints plan     # preview, safe, touches nothing
+npx sanity@latest blueprints deploy   # applies it for real
 ```
 
-## 7. Verifica che funzioni
+**Only once the deploy completes** does the Function exist as a remote resource — it's
+important to deploy BEFORE setting secrets in the next step, otherwise `functions env add`
+responds with `Error: Unable to find function`.
 
-Modifica e salva un campo internazionalizzato in italiano su un documento nello Studio,
-poi controlla i log:
+The Function already works at this point, even without secrets: it simply logs an error
+("AZURE_TRANSLATOR_KEY not set") and does nothing, without breaking anything.
+
+## 6. Set the secrets
+
+```sh
+npx sanity@latest functions env add translate-azure AZURE_TRANSLATOR_KEY <your-KEY-1>
+npx sanity@latest functions env add translate-azure AZURE_TRANSLATOR_REGION <your-region>
+```
+
+## 7. Verify it works
+
+Edit and save an internationalized field on a document in the Studio, then check the
+logs:
 
 ```sh
 npx sanity@latest functions logs translate-azure
 ```
 
-Dovresti vedere `Tradotti N campo/lingua su <id-documento>`. Se vuoi controllare anche il
-contenuto effettivo del documento senza aprire lo Studio:
+You should see `Translated N field/language on <document-id>`. If you want to check the
+document's actual content without opening the Studio:
 
 ```sh
-npx sanity@latest documents query '*[_id=="<id-documento>"]{...}' --project <project-id> --dataset <dataset>
+npx sanity@latest documents query '*[_id=="<document-id>"]{...}' --project <project-id> --dataset <dataset>
 ```
 
-(nota: `--project` è deprecato a favore di `--project-id`, ma entrambi funzionano ancora
-al momento in cui scrivo; se il documento è ancora in bozza, il suo `_id` reale ha il
-prefisso `drafts.` davanti).
+(note: `--project` is deprecated in favor of `--project-id`, but both still work as of
+this writing; if the document is still a draft, its real `_id` has the `drafts.` prefix
+in front of it).
 
-## 8. Attiva Azure nello Studio
+## 8. Enable Azure in the Studio
 
 In `sanity.config.ts`:
 
 ```ts
 autoI18nPlugin({
   provider: 'azure',
-  defaultSourceLanguage: 'it',
+  defaultSourceLanguage: 'en',
 })
 ```
 
-Con `provider: 'azure'` il bottone "Traduci mancanti" e il pulsante nel banner spariscono
-dallo Studio (non c'è più nulla da eseguire lato client) — resta solo il conteggio
-informativo "N traduzioni mancanti o da aggiornare. Verranno tradotte automaticamente al
-salvataggio."
+With `provider: 'azure'` the "Translate missing" button and the banner's button disappear
+from the Studio (there's nothing left to run client-side) — only the informational count
+remains, "N translations missing or outdated. They will be translated automatically on
+save."
 
-## Note / limiti di questo template
+## Notes / limitations of this template
 
-- **Filtro documenti**: per default la Function gira su ogni tipo di documento tranne
-  `autoI18n.languageSettings`. Se hai molti tipi documento senza campi internazionalizzati,
-  puoi restringere il filtro in `sanity.blueprint.ts` (es. `_type == "post"`) per risparmiare
-  invocazioni — non è indispensabile, la Function esce subito senza fare nulla se non trova
-  campi da tradurre, ma un filtro più stretto è comunque più pulito.
-- **Codice duplicato**: `functions/translate-azure/index.ts` contiene una copia (non un
-  import) della logica di hashing/staleness del plugin, perché il pacchetto npm del plugin
-  non è raggiungibile dal build remoto della Function. Se aggiorni la logica di traduzione
-  nel plugin, ricordati di riportare a mano le stesse modifiche qui (è commentato nel file).
-- **Test locale**: `npx sanity@latest functions test translate-azure --document-id <id>
-  --dataset <dataset> --with-user-token` esegue la function in locale, ma NON legge i
-  secret impostati con `functions env add` (quelli valgono solo per il deploy remoto) — per
-  testare in locale con valori reali vanno passati come variabili d'ambiente della shell,
-  es. `AZURE_TRANSLATOR_KEY=... npx sanity@latest functions test ...`.
+- **Document filter**: by default the Function runs on every document type except
+  `autoI18n.languageSettings`. If you have many document types with no internationalized
+  fields, you can narrow the filter in `sanity.blueprint.ts` (e.g. `_type == "post"`) to
+  save invocations — not strictly necessary, the Function exits immediately without doing
+  anything if it finds no fields to translate, but a tighter filter is still cleaner.
+- **Duplicated code**: `functions/translate-azure/index.ts` contains a copy (not an
+  import) of the plugin's hashing/staleness logic, because the plugin's npm package isn't
+  reachable from the Function's remote build. If you update the translation logic in the
+  plugin, remember to manually carry the same changes over here (this is documented in
+  the file's comments).
+- **Local testing**: `npx sanity@latest functions test translate-azure --document-id <id>
+--dataset <dataset> --with-user-token` runs the function locally, but does NOT read the
+  secrets set with `functions env add` (those only apply to the remote deploy) — to test
+  locally with real values, pass them as shell environment variables, e.g.
+  `AZURE_TRANSLATOR_KEY=... npx sanity@latest functions test ...`.
