@@ -5,6 +5,13 @@
 All notable changes to this project will be documented in this file. See
 [Conventional Commits](https://conventionalcommits.org) for commit guidelines.
 
+## [1.0.3](https://github.com/namecoder1/sanity-plugin-i18n/compare/v1.0.2...v1.0.3) (2026-08-28)
+
+### Bug Fixes
+
+- make Language Settings a true singleton ([3204222](https://github.com/namecoder1/sanity-plugin-i18n/commit/3204222ce31f61f8c06a99ab4055d33904344ead))
+- translate Studio UI strings to English ([91e38a1](https://github.com/namecoder1/sanity-plugin-i18n/commit/91e38a1cf14772f4f9af6ff13e558d40353c66e0))
+
 ## [1.0.2](https://github.com/namecoder1/sanity-plugin-i18n/compare/v1.0.1...v1.0.2) (2026-08-28)
 
 ### Bug Fixes
