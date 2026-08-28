@@ -33,28 +33,28 @@ import type {ComponentType} from 'react'
  * schema di @portabletext/editor).
  */
 const STYLES = [
-  {name: 'normal', title: 'Normale'},
-  {name: 'h1', title: 'Titolo 1'},
-  {name: 'h2', title: 'Titolo 2'},
-  {name: 'h3', title: 'Titolo 3'},
-  {name: 'h4', title: 'Titolo 4'},
-  {name: 'blockquote', title: 'Citazione'},
+  {name: 'normal', title: 'Normal'},
+  {name: 'h1', title: 'Heading 1'},
+  {name: 'h2', title: 'Heading 2'},
+  {name: 'h3', title: 'Heading 3'},
+  {name: 'h4', title: 'Heading 4'},
+  {name: 'blockquote', title: 'Quote'},
 ] as const
 
 const ptSchema = defineSchema({
   decorators: [
-    {name: 'strong', title: 'Grassetto'},
-    {name: 'em', title: 'Corsivo'},
-    {name: 'underline', title: 'Sottolineato'},
-    {name: 'strike-through', title: 'Barrato'},
+    {name: 'strong', title: 'Bold'},
+    {name: 'em', title: 'Italic'},
+    {name: 'underline', title: 'Underline'},
+    {name: 'strike-through', title: 'Strike'},
   ],
   styles: STYLES.map(({name, title}) => ({name, title})),
   annotations: [
     {name: 'link', title: 'Link', fields: [{name: 'href', title: 'URL', type: 'string'}]},
   ],
   lists: [
-    {name: 'bullet', title: 'Puntata'},
-    {name: 'number', title: 'Numerata'},
+    {name: 'bullet', title: 'Bullet'},
+    {name: 'number', title: 'Numbered'},
   ],
   inlineObjects: [],
   blockObjects: [],
@@ -246,7 +246,7 @@ function LinkButton() {
         }
         // Toolbar minimale, nessun sistema di dialog nel plugin: un prompt
         // nativo è il compromesso più semplice per l'MVP.
-        const href = window.prompt('URL del link:')
+        const href = window.prompt('Link URL:')
         if (href) {
           editor.send({type: 'annotation.toggle', annotation: {name: 'link', value: {href}}})
         }

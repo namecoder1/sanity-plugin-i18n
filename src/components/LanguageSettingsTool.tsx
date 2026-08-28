@@ -1,6 +1,7 @@
-import {useEffect} from 'react'
 import {Flex, Spinner, Text} from '@sanity/ui'
+import {useEffect} from 'react'
 import {useRouter} from 'sanity/router'
+
 import {LANGUAGE_SETTINGS_DOC_ID} from '../config'
 
 /**
@@ -25,7 +26,7 @@ export function LanguageSettingsTool() {
     <Flex height="fill" align="center" justify="center" gap={3}>
       <Spinner muted />
       <Text size={1} muted>
-        Apertura Impostazioni Lingue...
+        Opening Language Settings...
       </Text>
     </Flex>
   )

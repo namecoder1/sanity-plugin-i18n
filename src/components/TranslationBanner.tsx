@@ -84,7 +84,7 @@ export function createTranslationBanner(config: AutoI18nConfig) {
         console.error('[auto-i18n] Errore durante la traduzione:', err)
         toast.push({
           status: 'error',
-          title: 'Traduzione fallita',
+          title: 'Translation failed',
           description: err instanceof Error ? err.message : String(err),
         })
       } finally {
@@ -108,14 +108,14 @@ export function createTranslationBanner(config: AutoI18nConfig) {
               <Flex align="center" justify="space-between" gap={3} paddingX={2}>
                 <Text size={1}>
                   {pendingCount === 1
-                    ? '1 traduzione mancante o da aggiornare.'
-                    : `${pendingCount} traduzioni mancanti o da aggiornare.`}
-                  {isAzure ? ' Verranno tradotte automaticamente al salvataggio.' : ''}
+                    ? '1 translation missing or out of date.'
+                    : `${pendingCount} translations missing or out of date.`}
+                  {isAzure ? ' They will be translated automatically on save.' : ''}
                 </Text>
                 {isAzure ? null : (
                   <Button
                     icon={TranslateIcon}
-                    text={isTranslating ? 'Traduzione in corso...' : 'Traduci ora'}
+                    text={isTranslating ? 'Translating...' : 'Translate now'}
                     tone="primary"
                     mode="ghost"
                     fontSize={1}

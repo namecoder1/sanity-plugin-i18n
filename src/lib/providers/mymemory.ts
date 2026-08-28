@@ -38,7 +38,7 @@ async function translateWithMyMemory(
   // esaurita, ecc.): lo stato reale è in `responseStatus`, non nell'HTTP status.
   if (data?.responseStatus && Number(data.responseStatus) !== 200) {
     throw new Error(
-      `MyMemory API error ${data.responseStatus}: ${data?.responseData?.translatedText || 'errore sconosciuto'}`,
+      `MyMemory API error ${data.responseStatus}: ${data?.responseData?.translatedText || 'unknown error'}`,
     )
   }
 
@@ -46,7 +46,7 @@ async function translateWithMyMemory(
   const topMatch: number | undefined =
     typeof data?.responseData?.match === 'number' ? data.responseData.match : undefined
   if (!topTranslation) {
-    throw new Error('Nessuna traduzione ricevuta da MyMemory')
+    throw new Error('No translation received from MyMemory')
   }
 
   // Il primo candidato è `responseData`, gli altri (se presenti) sono le

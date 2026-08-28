@@ -66,7 +66,7 @@ describe('createAzureProvider', () => {
 
     const provider = createAzureProvider({apiKey: 'k'})
     await expect(provider.translateText('ciao', 'it', 'en')).rejects.toThrow(
-      /Nessuna traduzione ricevuta/,
+      /No translation received/,
     )
   })
 })

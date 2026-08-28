@@ -45,7 +45,7 @@ export function createAzureProvider(options: AzureProviderOptions): TranslationP
       const data = await res.json()
       const translated = data?.[0]?.translations?.[0]?.text
       if (typeof translated !== 'string') {
-        throw new Error('Nessuna traduzione ricevuta da Azure Translator')
+        throw new Error('No translation received from Azure Translator')
       }
       return translated
     },

@@ -138,7 +138,7 @@ export function InternationalizedInput(props: ArrayOfObjectsInputProps<LocaleVal
       <Flex padding={3} align="center" gap={2}>
         <Spinner muted />
         <Text size={1} muted>
-          Caricamento lingue...
+          Loading languages...
         </Text>
       </Flex>
     )
@@ -148,8 +148,8 @@ export function InternationalizedInput(props: ArrayOfObjectsInputProps<LocaleVal
     return (
       <Box padding={3}>
         <Text size={1} muted>
-          Nessuna lingua configurata. Crea un documento &quot;Impostazioni Lingue&quot; con almeno
-          una lingua.
+          No language configured. Create a &quot;Language Settings&quot; document with at least one
+          language.
         </Text>
       </Box>
     )
@@ -175,7 +175,7 @@ export function InternationalizedInput(props: ArrayOfObjectsInputProps<LocaleVal
               key={lang.code}
               id={`tab-${lang.code}`}
               aria-controls={`panel-${lang.code}`}
-              label={`${lang.label}${lang.isDefault ? ' (sorgente)' : ''}${hasValue ? '' : ' ·'}`}
+              label={`${lang.label}${lang.isDefault ? ' (source)' : ''}${hasValue ? '' : ' ·'}`}
               selected={activeLang === lang.code}
               onClick={() => setActiveLang(lang.code)}
             />
@@ -193,20 +193,20 @@ export function InternationalizedInput(props: ArrayOfObjectsInputProps<LocaleVal
                 key={`${lang.code}:${getSourceHashFor(lang.code) ?? ''}`}
                 value={getBlocksValueFor(lang.code)}
                 onChange={(blocks) => handleChangeFor(lang.code, blocks)}
-                placeholder={`Testo in ${lang.label}`}
+                placeholder={`Text in ${lang.label}`}
               />
             ) : isMultiline ? (
               <TextArea
                 rows={4}
                 value={getStringValueFor(lang.code)}
                 onChange={(event) => handleChangeFor(lang.code, event.currentTarget.value)}
-                placeholder={`Testo in ${lang.label}`}
+                placeholder={`Text in ${lang.label}`}
               />
             ) : (
               <TextInput
                 value={getStringValueFor(lang.code)}
                 onChange={(event) => handleChangeFor(lang.code, event.currentTarget.value)}
-                placeholder={`Testo in ${lang.label}`}
+                placeholder={`Text in ${lang.label}`}
               />
             )}
           </TabPanel>

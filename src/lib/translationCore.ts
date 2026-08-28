@@ -196,11 +196,11 @@ export async function fetchLanguageSettings(
   )
   const languages = langSettings?.supportedLanguages || []
   if (languages.length === 0) {
-    throw new Error('Nessuna lingua configurata in autoI18n.languageSettings')
+    throw new Error('No language configured in autoI18n.languageSettings')
   }
 
   const sourceLang =
-    languages.find((l) => l.isDefault)?.code || config.defaultSourceLanguage || 'it'
+    languages.find((l) => l.isDefault)?.code || config.defaultSourceLanguage || 'en'
   const targetLangs = languages.map((l) => l.code).filter((c) => c !== sourceLang)
 
   return {sourceLang, targetLangs}

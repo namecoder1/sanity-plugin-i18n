@@ -14,7 +14,7 @@ import {InternationalizedInput} from '../components/InternationalizedInput'
 export function createInternationalizedFieldType(baseType: 'string' | 'text') {
   return defineType({
     name: `autoI18n.${baseType}`,
-    title: `Testo internazionalizzato (${baseType})`,
+    title: `Internationalized text (${baseType})`,
     type: 'array',
     of: [
       defineArrayMember({
@@ -23,7 +23,7 @@ export function createInternationalizedFieldType(baseType: 'string' | 'text') {
         fields: [
           defineField({
             name: 'value',
-            title: 'Valore',
+            title: 'Value',
             type: baseType,
           }),
           defineField({
@@ -36,7 +36,7 @@ export function createInternationalizedFieldType(baseType: 'string' | 'text') {
           select: {value: 'value', key: '_key'},
           prepare({value, key}) {
             return {
-              title: value || '(vuoto)',
+              title: value || '(empty)',
               subtitle: key?.toUpperCase(),
             }
           },
@@ -84,7 +84,7 @@ export const internationalizedTextType = createInternationalizedFieldType('text'
  */
 export const internationalizedStringListType = defineType({
   name: 'autoI18n.stringList',
-  title: 'Elenco di stringhe internazionalizzate',
+  title: 'Internationalized string list',
   type: 'array',
   of: [
     defineArrayMember({
@@ -93,7 +93,7 @@ export const internationalizedStringListType = defineType({
       fields: [
         defineField({
           name: 'value',
-          title: 'Valore',
+          title: 'Value',
           type: 'autoI18n.string',
         }),
       ],
@@ -104,7 +104,7 @@ export const internationalizedStringListType = defineType({
           const it = values.find((v: {_key?: string}) => v._key === 'it')?.value as
             | string
             | undefined
-          return {title: it || values[0]?.value || '(vuoto)'}
+          return {title: it || values[0]?.value || '(empty)'}
         },
       },
     }),
@@ -122,7 +122,7 @@ export const internationalizedStringListType = defineType({
  */
 export const internationalizedBlockContentType = defineType({
   name: 'autoI18n.blockContent',
-  title: 'Testo internazionalizzato (rich text)',
+  title: 'Internationalized text (rich text)',
   type: 'array',
   of: [
     defineArrayMember({
@@ -131,29 +131,29 @@ export const internationalizedBlockContentType = defineType({
       fields: [
         defineField({
           name: 'value',
-          title: 'Valore',
+          title: 'Value',
           type: 'array',
           of: [
             {
               type: 'block',
               styles: [
-                {title: 'Normale', value: 'normal'},
-                {title: 'Titolo 1', value: 'h1'},
-                {title: 'Titolo 2', value: 'h2'},
-                {title: 'Titolo 3', value: 'h3'},
-                {title: 'Titolo 4', value: 'h4'},
-                {title: 'Citazione', value: 'blockquote'},
+                {title: 'Normal', value: 'normal'},
+                {title: 'Heading 1', value: 'h1'},
+                {title: 'Heading 2', value: 'h2'},
+                {title: 'Heading 3', value: 'h3'},
+                {title: 'Heading 4', value: 'h4'},
+                {title: 'Quote', value: 'blockquote'},
               ],
               lists: [
-                {title: 'Puntata', value: 'bullet'},
-                {title: 'Numerata', value: 'number'},
+                {title: 'Bullet', value: 'bullet'},
+                {title: 'Numbered', value: 'number'},
               ],
               marks: {
                 decorators: [
-                  {title: 'Grassetto', value: 'strong'},
-                  {title: 'Corsivo', value: 'em'},
-                  {title: 'Sottolineato', value: 'underline'},
-                  {title: 'Barrato', value: 'strike-through'},
+                  {title: 'Bold', value: 'strong'},
+                  {title: 'Italic', value: 'em'},
+                  {title: 'Underline', value: 'underline'},
+                  {title: 'Strike', value: 'strike-through'},
                 ],
                 annotations: [
                   {
@@ -184,7 +184,7 @@ export const internationalizedBlockContentType = defineType({
             .join(' ')
             .trim()
           return {
-            title: text || '(vuoto)',
+            title: text || '(empty)',
             subtitle: key?.toUpperCase(),
           }
         },

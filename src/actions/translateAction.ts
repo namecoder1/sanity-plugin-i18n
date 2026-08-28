@@ -1,11 +1,12 @@
+import {TranslateIcon} from '@sanity/icons/Translate'
+import {useToast} from '@sanity/ui/toast'
 import {useState} from 'react'
 import {useClient, useDocumentOperation} from 'sanity'
-import {useToast} from '@sanity/ui/toast'
-import {TranslateIcon} from '@sanity/icons/Translate'
 import type {DocumentActionComponent, DocumentActionProps} from 'sanity'
-import {buildTranslationPatches, fetchLanguageSettings} from '../lib/translationCore'
-import {createMyMemoryProvider} from '../lib/providers/mymemory'
+
 import type {AutoI18nConfig} from '../config'
+import {createMyMemoryProvider} from '../lib/providers/mymemory'
+import {buildTranslationPatches, fetchLanguageSettings} from '../lib/translationCore'
 
 const API_VERSION = '2023-01-01'
 
@@ -31,7 +32,7 @@ export function createTranslateAction(config: AutoI18nConfig): DocumentActionCom
     const doc = (draft || published) as Record<string, unknown> | undefined
 
     return {
-      label: isTranslating ? 'Traduzione in corso...' : 'Traduci mancanti',
+      label: isTranslating ? 'Translating...' : 'Translate missing',
       icon: TranslateIcon,
       disabled: isTranslating || !doc,
       onHandle: async () => {
@@ -50,7 +51,7 @@ export function createTranslateAction(config: AutoI18nConfig): DocumentActionCom
           console.error('[auto-i18n] Errore durante la traduzione:', err)
           toast.push({
             status: 'error',
-            title: 'Traduzione fallita',
+            title: 'Translation failed',
             description: err instanceof Error ? err.message : String(err),
           })
         } finally {
