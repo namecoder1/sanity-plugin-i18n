@@ -1,5 +1,17 @@
 # sanity-plugin-i18n
 
+Field-level internationalization for Sanity Studio, with automatic machine
+translation. Add `autoI18n.string` / `autoI18n.text` / `autoI18n.blockContent`
+/ `autoI18n.stringList` fields to your schemas and get a per-language tab
+editor for free — plus a one-click **"Translate missing"** action that fills
+in every other configured language from your source text.
+
+## Requirements
+
+- `sanity` package `^5` or `^6`
+- React 18 or 19
+- Node.js `>=20.19 <22` or `>=22.12`
+
 ## Installation
 
 ```sh
@@ -26,18 +38,29 @@ export default defineConfig({
 })
 ```
 
-Use the `autoI18n.string` / `autoI18n.text` / `autoI18n.blockContent` types instead of
-`string` / `text` / a Portable Text block array in your schemas:
+This registers four schema types you can use instead of `string` / `text` /
+a Portable Text block array / a plain string array:
 
 ```ts
 defineField({name: 'title', type: 'autoI18n.string'})
 defineField({name: 'excerpt', type: 'autoI18n.text'})
 defineField({name: 'body', type: 'autoI18n.blockContent'}) // rich text
+defineField({name: 'tags', type: 'autoI18n.stringList'}) // array of independently-translated strings
 ```
 
-Each of these fields stores an array `[{_key: 'en', value: '...'}, {_key: 'fr', value: '...'}]`
+| Type                    | Replaces               | Notes                                                                 |
+| ----------------------- | ---------------------- | --------------------------------------------------------------------- |
+| `autoI18n.string`       | `string`               | single-line text                                                      |
+| `autoI18n.text`         | `text`                 | multi-line plain text                                                 |
+| `autoI18n.blockContent` | an `array` of `block`  | rich text — see "Rich text support" below                             |
+| `autoI18n.stringList`   | an `array` of `string` | each list item has its own independent per-language value (e.g. tags) |
+
+Each of the first three stores an array `[{_key: 'en', value: '...'}, {_key: 'fr', value: '...'}]`
 instead of a single value — one tab per language in the Studio editor, handled automatically
-by the plugin.
+by the plugin. `autoI18n.stringList` nests that same shape inside every list item, so tags
+(or any short repeated string) can each carry their own translations independently.
+
+### Rich text support
 
 `autoI18n.blockContent` supports paragraphs, headings (H1-H4), quotes, bulleted/numbered
 lists, links, and the bold/italic/underline/strike-through decorators — not custom objects
@@ -64,8 +87,10 @@ runs in the browser, but automatically on save, via a Sanity Function.
 
 ### Configuring languages (source and automatic translations)
 
-The plugin adds an **"Language Settings"** entry to the Studio nav bar. From there you
-open a singleton document with a `supportedLanguages` array, where each row has:
+The plugin adds a **"Language Settings"** entry to the Studio nav bar. It's a singleton —
+there is always exactly one such document, with a fixed ID, and it's hidden from the
+regular content list and the global "+" new-document menu. From there you open a document
+with a `supportedLanguages` array, where each row has:
 
 - `code`: the language code (e.g. `en`, `fr`, `de`) — must match the keys used in
   internationalized fields;
@@ -78,7 +103,9 @@ click **"Translate missing"** on a document, the plugin translates from the sour
 language to each of the other listed languages, skipping ones that already have a value.
 
 If no language has `isDefault: true`, the `defaultSourceLanguage` passed in the config
-is used instead (or `en` as a last-resort fallback).
+is used instead (or `en` as a last-resort fallback). **No translation is possible until
+at least one language is configured** — with none configured, internationalized fields
+render an empty state instead of the tab editor.
 
 ## Translation engine: MyMemory (default) or Azure Translator
 
@@ -103,6 +130,36 @@ whenever a document is saved. See the full step-by-step guide in
 Azure account (a free tier is available), a few terminal commands (`sanity blueprints`),
 and copying a couple of files into your Studio repo. Not complicated, but not "zero
 config" like MyMemory: if you're just trying out the plugin, start with MyMemory.
+
+## Advanced: building a custom translation provider
+
+If neither MyMemory nor Azure fits (e.g. you want DeepL, or an in-house translation
+service), the plugin exports the pieces used internally to build one:
+
+```ts
+import {
+  fetchLanguageSettings, // reads the Language Settings singleton -> {sourceLang, targetLangs}
+  findInternationalizedFieldPaths, // walks a document, returns every autoI18n.* field's path
+  findPendingTranslations, // diffs source vs. translated values, returns what needs (re)translating
+  buildTranslationPatches, // runs a TranslationProvider over pending translations, returns Sanity patches
+  hashSourceValue, // hashing used to detect a stale translation (source edited since last run)
+  hasContent, // true if a LocaleValue actually holds text/blocks
+  createMyMemoryProvider,
+  createAzureProvider,
+} from 'sanity-plugin-i18n'
+import type {
+  TranslationProvider, // the interface a custom provider must implement
+  PendingTranslation,
+  LocaleValue,
+  LanguageEntry,
+  AzureProviderOptions,
+} from 'sanity-plugin-i18n'
+```
+
+`TranslationProvider` is the shape both bundled providers implement — a single
+`translateText(text, from, to)` method. This is also what the Sanity Function in
+`azure-function-template/` is built from, so it's a useful reference for writing your own
+server-side translation Function.
 
 ## Known limitations
 
