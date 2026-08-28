@@ -102,14 +102,15 @@ export const autoI18nPlugin = definePlugin<AutoI18nConfig | void>((config = {}) 
       components: {
         unstable_layout: createTranslationBanner(resolvedConfig),
       },
-      // Il tipo è già "hidden" (fuori da liste/ricerca), ma il menu "+"
-      // globale può comunque proporre un template per qualsiasi document
-      // type dello schema: lo escludiamo esplicitamente per sicurezza.
-      newDocumentOptions: (prev, {creationContext}) => {
-        if (creationContext.type === 'global') {
-          return prev.filter((template) => template.templateId !== languageSettingsType.name)
-        }
-        return prev
+      // Toglie il template del singleton da OGNI punto di creazione: il menu
+      // "+" globale (creationContext.type === 'global') E il "+" del pannello
+      // per-tipo nella Content list di default (creationContext.type ===
+      // 'structure') — a differenza del solo filtro su 'global', questo
+      // copre anche il caso visto nello Studio di test, dove il tipo non è
+      // "hidden" (vedi commento in config.ts) e quindi resta elencato nella
+      // Content list col proprio "+".
+      newDocumentOptions: (prev) => {
+        return prev.filter((template) => template.templateId !== languageSettingsType.name)
       },
     },
     tools: (prev) => {

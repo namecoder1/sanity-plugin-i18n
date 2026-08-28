@@ -40,10 +40,12 @@ export const languageSettingsType = defineType({
   title: 'Language Settings',
   type: 'document',
   icon: EarthGlobeIcon,
-  // Singleton: nasconde il tipo da liste/ricerca e dal menu "crea nuovo
-  // documento" — resta comunque raggiungibile navigando direttamente
-  // all'ID fisso, che è esattamente ciò che fa LanguageSettingsTool.
-  hidden: () => true,
+  // NB: niente `hidden: () => true` qui — su un intero document type quel
+  // flag non nasconde solo il tipo da liste/menu, nasconde anche il FORM
+  // stesso (Studio mostra "This form is hidden" pure sul documento singleton
+  // legittimo aperto da LanguageSettingsTool). La prevenzione dei duplicati è
+  // interamente delegata a `document.newDocumentOptions`/`document.actions`
+  // in index.ts, che bloccano la creazione senza rompere la modifica.
   __experimental_formPreviewTitle: false,
   preview: {
     select: {languages: 'supportedLanguages'},
