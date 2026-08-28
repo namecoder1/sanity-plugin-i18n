@@ -5,6 +5,12 @@
 All notable changes to this project will be documented in this file. See
 [Conventional Commits](https://conventionalcommits.org) for commit guidelines.
 
+## [1.0.4](https://github.com/namecoder1/sanity-plugin-i18n/compare/v1.0.3...v1.0.4) (2026-08-28)
+
+### Bug Fixes
+
+- correctly prevent duplicate Language Settings documents ([7c2d69c](https://github.com/namecoder1/sanity-plugin-i18n/commit/7c2d69c07700d3cfb940d02c61f2197c68da57d4))
+
 ## [1.0.3](https://github.com/namecoder1/sanity-plugin-i18n/compare/v1.0.2...v1.0.3) (2026-08-28)
 
 ### Bug Fixes
