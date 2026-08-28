@@ -88,9 +88,10 @@ runs in the browser, but automatically on save, via a Sanity Function.
 ### Configuring languages (source and automatic translations)
 
 The plugin adds a **"Language Settings"** entry to the Studio nav bar. It's a singleton —
-there is always exactly one such document, with a fixed ID, and it's hidden from the
-regular content list and the global "+" new-document menu. From there you open a document
-with a `supportedLanguages` array, where each row has:
+there is always exactly one such document, with a fixed ID, and it can't be created a
+second time or duplicated (the "+" new-document menu and the "Duplicate"/"Delete" actions
+are disabled for it). From there you open a document with a `supportedLanguages` array,
+where each row has:
 
 - `code`: the language code (e.g. `en`, `fr`, `de`) — must match the keys used in
   internationalized fields;
@@ -106,6 +107,43 @@ If no language has `isDefault: true`, the `defaultSourceLanguage` passed in the 
 is used instead (or `en` as a last-resort fallback). **No translation is possible until
 at least one language is configured** — with none configured, internationalized fields
 render an empty state instead of the tab editor.
+
+#### Optional: a dedicated sidebar entry
+
+By default, "Language Settings" is reachable from the nav bar tool above, and — because
+it's a regular document type — it also shows up in the Structure tool's default "Content"
+list, in a generic per-type list pane (this is a Sanity Studio limitation: a plugin has no
+way to hide one of its own document types from the default Content list; only a custom
+`structure()` in the Studio itself can do that).
+
+If you'd rather have a single, dedicated sidebar entry that jumps straight to the document
+(no "No documents of this type" state, no generic list) — the same experience you'd hand-build
+for any other singleton — the plugin exports two helpers for your own `structure()`:
+
+```ts
+// structure.ts
+import type {StructureBuilder} from 'sanity/structure'
+import {languageSettingsListItem, excludeLanguageSettingsType} from 'sanity-plugin-i18n'
+
+export const structure = (S: StructureBuilder) =>
+  S.list()
+    .title('Content')
+    .items([languageSettingsListItem(S), ...excludeLanguageSettingsType(S.documentTypeListItems())])
+```
+
+```ts
+// sanity.config.ts
+import {structureTool} from 'sanity/structure'
+import {structure} from './structure'
+
+export default defineConfig({
+  // ...
+  plugins: [structureTool({structure}), autoI18nPlugin({...})],
+})
+```
+
+`languageSettingsListItem(S)` builds the sidebar entry; `excludeLanguageSettingsType(...)`
+removes the type from the generic per-type list so it doesn't appear twice.
 
 ## Translation engine: MyMemory (default) or Azure Translator
 

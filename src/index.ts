@@ -33,6 +33,12 @@ export type {TranslationProvider} from './lib/providers/types'
 export {createMyMemoryProvider} from './lib/providers/mymemory'
 export {createAzureProvider} from './lib/providers/azure'
 export type {AzureProviderOptions} from './lib/providers/azure'
+export {LANGUAGE_SETTINGS_DOC_ID} from './config'
+
+// Helper opzionali per chi vuole una voce di sidebar dedicata al singleton
+// "Language Settings" invece della lista generica per tipo — vedi TSDoc in
+// structure.ts per l'esempio d'uso in un `structure()` custom.
+export {languageSettingsListItem, excludeLanguageSettingsType} from './structure'
 
 /**
  * Usage in `sanity.config.ts` (o .js)
