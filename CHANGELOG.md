@@ -5,6 +5,12 @@
 All notable changes to this project will be documented in this file. See
 [Conventional Commits](https://conventionalcommits.org) for commit guidelines.
 
+## [1.1.0](https://github.com/namecoder1/sanity-plugin-i18n/compare/v1.0.4...v1.1.0) (2026-08-28)
+
+### Features
+
+- export optional structure helpers for a dedicated Language Settings entry ([4ec30f2](https://github.com/namecoder1/sanity-plugin-i18n/commit/4ec30f2a2a8253806a7d32a9689fefd9a2e5537f))
+
 ## [1.0.4](https://github.com/namecoder1/sanity-plugin-i18n/compare/v1.0.3...v1.0.4) (2026-08-28)
 
 ### Bug Fixes
