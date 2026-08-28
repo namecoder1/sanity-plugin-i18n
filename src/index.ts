@@ -70,7 +70,15 @@ export const autoI18nPlugin = definePlugin<AutoI18nConfig | void>((config = {}) 
       ],
     },
     document: {
-      actions: (prev) => {
+      actions: (prev, context) => {
+        // "Impostazioni Lingue" è un singleton (id fisso, tipo nascosto da
+        // liste/menu — vedi languageSettingsType.hidden): niente "Duplica" o
+        // "Elimina", altrimenti un utente potrebbe comunque crearne una
+        // seconda copia o cancellare l'unica esistente.
+        if (context.schemaType === languageSettingsType.name) {
+          return prev.filter((action) => !['duplicate', 'delete'].includes(action.action ?? ''))
+        }
+
         // Con provider 'azure' la traduzione non gira nel browser (la key non
         // può starci): la fa una Sanity Function al salvataggio. L'azione
         // manuale non avrebbe nulla da eseguire, quindi non la registriamo.
@@ -94,13 +102,22 @@ export const autoI18nPlugin = definePlugin<AutoI18nConfig | void>((config = {}) 
       components: {
         unstable_layout: createTranslationBanner(resolvedConfig),
       },
+      // Il tipo è già "hidden" (fuori da liste/ricerca), ma il menu "+"
+      // globale può comunque proporre un template per qualsiasi document
+      // type dello schema: lo escludiamo esplicitamente per sicurezza.
+      newDocumentOptions: (prev, {creationContext}) => {
+        if (creationContext.type === 'global') {
+          return prev.filter((template) => template.templateId !== languageSettingsType.name)
+        }
+        return prev
+      },
     },
     tools: (prev) => {
       return [
         ...prev,
         {
           name: 'auto-i18n-language-settings',
-          title: 'Impostazioni Lingue',
+          title: 'Language Settings',
           icon: EarthGlobeIcon,
           component: LanguageSettingsTool,
         },

@@ -1,5 +1,5 @@
-import {defineType, defineField, defineArrayMember} from 'sanity'
 import {EarthGlobeIcon} from '@sanity/icons/EarthGlobe'
+import {defineType, defineField, defineArrayMember} from 'sanity'
 
 /**
  * Configurazione passata dall'utente in sanity.config.ts:
@@ -37,31 +37,34 @@ export interface AutoI18nConfig {
  */
 export const languageSettingsType = defineType({
   name: 'autoI18n.languageSettings',
-  title: 'Impostazioni Lingue',
+  title: 'Language Settings',
   type: 'document',
   icon: EarthGlobeIcon,
-  // Nasconde il tipo dal menu "crea nuovo documento": è un singleton
+  // Singleton: nasconde il tipo da liste/ricerca e dal menu "crea nuovo
+  // documento" — resta comunque raggiungibile navigando direttamente
+  // all'ID fisso, che è esattamente ciò che fa LanguageSettingsTool.
+  hidden: () => true,
   __experimental_formPreviewTitle: false,
   preview: {
     select: {languages: 'supportedLanguages'},
     prepare({languages}: {languages?: {code?: string; label?: string; isDefault?: boolean}[]}) {
       const list = Array.isArray(languages) ? languages : []
       if (list.length === 0) {
-        return {title: 'Impostazioni Lingue', subtitle: 'Nessuna lingua configurata'}
+        return {title: 'Language Settings', subtitle: 'No language configured'}
       }
       const subtitle = list
-        .map((l) => (l.isDefault ? `${l.code?.toUpperCase()} (sorgente)` : l.code?.toUpperCase()))
+        .map((l) => (l.isDefault ? `${l.code?.toUpperCase()} (source)` : l.code?.toUpperCase()))
         .join(' · ')
       return {
-        title: 'Impostazioni Lingue',
-        subtitle: `${list.length} ${list.length === 1 ? 'lingua' : 'lingue'}: ${subtitle}`,
+        title: 'Language Settings',
+        subtitle: `${list.length} ${list.length === 1 ? 'language' : 'languages'}: ${subtitle}`,
       }
     },
   },
   fields: [
     defineField({
       name: 'supportedLanguages',
-      title: 'Lingue supportate',
+      title: 'Supported languages',
       type: 'array',
       of: [
         defineArrayMember({
@@ -70,19 +73,19 @@ export const languageSettingsType = defineType({
           fields: [
             defineField({
               name: 'code',
-              title: 'Codice lingua (es. it, en, de)',
+              title: 'Language code (e.g. en, fr, de)',
               type: 'string',
               validation: (Rule) => Rule.required().lowercase(),
             }),
             defineField({
               name: 'label',
-              title: 'Etichetta visibile',
+              title: 'Display label',
               type: 'string',
               validation: (Rule) => Rule.required(),
             }),
             defineField({
               name: 'isDefault',
-              title: 'Lingua sorgente di default',
+              title: 'Default source language',
               type: 'boolean',
               initialValue: false,
             }),
