@@ -201,6 +201,38 @@ server-side translation Function.
 
 ## Known limitations
 
+- **Document previews (list rows, the document title bar) break by default**: since
+  `autoI18n.string` / `autoI18n.text` / `autoI18n.blockContent` store an array of
+  `{_key, value, sourceHash}` instead of a plain string, Sanity Studio's automatic preview
+  (which expects a field literally named `title` to be a string) can't derive a title from
+  it and falls back to showing the raw serialized array. Fix it by adding an explicit
+  `preview` to any document type that uses one of these fields as its title/subtitle:
+
+  ```ts
+  const localeValueToText = (value: unknown, sourceLang = 'en') => {
+    const values = Array.isArray(value) ? value : []
+    return values.find((v: any) => v._key === sourceLang)?.value || values[0]?.value
+  }
+
+  defineType({
+    name: 'post',
+    type: 'document',
+    fields: [
+      defineField({name: 'title', type: 'autoI18n.string'}),
+      // ...
+    ],
+    preview: {
+      select: {title: 'title'},
+      prepare({title}) {
+        return {title: localeValueToText(title) || 'Untitled'}
+      },
+    },
+  })
+  ```
+
+  Use the same `sourceLang` you configured as `isDefault` in Language Settings (or your
+  `defaultSourceLanguage`).
+
 - **MyMemory is a translation memory, not a real translation engine**: it returns the
   closest match in its database (often extracted from books, academic papers). On short
   or generic text, it can occasionally return fragments unrelated to your source (e.g. a
