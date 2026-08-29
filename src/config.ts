@@ -1,51 +1,33 @@
 import {EarthGlobeIcon} from '@sanity/icons/EarthGlobe'
 import {defineType, defineField, defineArrayMember} from 'sanity'
 
-/**
- * Configurazione passata dall'utente in sanity.config.ts:
- *
- * plugins: [autoI18nPlugin({
- *   provider: 'mymemory',                            // opzionale, default 'mymemory'
- *   apiKey: process.env.SANITY_STUDIO_MYMEMORY_KEY, // opzionale, ma consigliata
- *   email: 'tuo@email.com',                          // opzionale, alza i rate limit
- *   defaultSourceLanguage: 'it',
- * })]
- */
-export interface AutoI18nConfig {
-  /**
-   * Motore di traduzione. Default 'mymemory' (chiamato direttamente dal
-   * browser, sincrono: bottone "Traduci mancanti" e banner funzionano come
-   * sempre). Con 'azure' il plugin NON traduce da solo — la subscription key
-   * di Azure Translator non deve mai stare nel bundle dello Studio, quindi la
-   * traduzione la fa una Sanity Function server-side che si attiva da sola al
-   * salvataggio del documento (vedi `functions/` nel repo dello Studio). In
-   * questa modalità il bottone/banner diventano solo informativi.
-   */
-  provider?: 'mymemory' | 'azure'
-  /** MyMemory API key dell'utente. Senza key il rate limit è molto più basso. */
-  apiKey?: string
-  /** Email da passare a MyMemory per rate limit più alti (non richiede key). */
-  email?: string
-  /** Lingua sorgente di default se non specificata a livello di documento. */
-  defaultSourceLanguage?: string
-}
+import {LANGUAGE_SETTINGS_DOC_ID} from './lib/shared'
+import type {AutoI18nConfig} from './lib/shared'
+
+// Re-exported from here so that every existing import path keeps working. The
+// definitions moved to `lib/shared.ts` because this module registers a schema type,
+// which makes it depend on `sanity` at runtime — and the framework-free entry point
+// (`sanity-plugin-i18n/core`) must not pull that in.
+export {LANGUAGE_SETTINGS_DOC_ID}
+export type {AutoI18nConfig}
 
 /**
- * Singleton document: definisce quali lingue sono disponibili nello studio.
- * Viene letto sia dal componente di input (per generare i tab lingua)
- * sia dalla translateAction (per sapere verso quali lingue tradurre).
+ * Singleton document defining which languages the Studio offers.
+ *
+ * Read both by the input component (to build the language tabs) and by the
+ * translate action (to know which languages to translate into).
  */
 export const languageSettingsType = defineType({
   name: 'autoI18n.languageSettings',
   title: 'Language Settings',
   type: 'document',
   icon: EarthGlobeIcon,
-  // NB: niente `hidden: () => true` qui — su un intero document type quel
-  // flag non nasconde solo il tipo da liste/menu, nasconde anche il FORM
-  // stesso (Studio mostra "This form is hidden" pure sul documento singleton
-  // legittimo aperto da LanguageSettingsTool). La prevenzione dei duplicati è
-  // interamente delegata a `document.newDocumentOptions`/`document.actions`
-  // in index.ts, che bloccano la creazione senza rompere la modifica.
+  // NOTE: deliberately no `hidden: () => true` here. On a whole document type that
+  // flag does not just hide the type from lists and menus, it hides the FORM too —
+  // the Studio then shows "This form is hidden" even on the legitimate singleton
+  // opened from LanguageSettingsTool. Preventing duplicates is left entirely to
+  // `document.newDocumentOptions` / `document.actions` in index.ts, which block
+  // creation without breaking editing.
   __experimental_formPreviewTitle: false,
   preview: {
     select: {languages: 'supportedLanguages'},
@@ -97,10 +79,48 @@ export const languageSettingsType = defineType({
           },
         }),
       ],
-      validation: (Rule) => Rule.required().min(1),
+      validation: (Rule) =>
+        Rule.required()
+          .min(1)
+          // The README has always asked for exactly one `isDefault` and no repeated
+          // codes, but nothing enforced it. Both mistakes fail silently and
+          // expensively: with two defaults the first one in array order wins, which
+          // is not obvious from anywhere; with two identical codes you get duplicate
+          // `_key`s inside the `localeValue` arrays, which Sanity rejects downstream
+          // with an error that points nowhere near this cause.
+          .custom((languages) => {
+            const list = Array.isArray(languages) ? (languages as LanguageEntryValue[]) : []
+
+            const codes = list
+              .map((lang) => lang?.code?.trim().toLowerCase())
+              .filter((code): code is string => Boolean(code))
+            const duplicates = [...new Set(codes.filter((c, i) => codes.indexOf(c) !== i))]
+            if (duplicates.length > 0) {
+              return `Duplicate language code: ${duplicates.join(', ')}. Each language must appear once.`
+            }
+
+            const defaults = list.filter((lang) => lang?.isDefault)
+            if (defaults.length > 1) {
+              const names = defaults.map((lang) => lang.code || '?').join(', ')
+              return `Only one language can be the default source (${names} are all marked). Translation starts from exactly one language.`
+            }
+            if (list.length > 0 && defaults.length === 0) {
+              return {
+                message:
+                  'No default source language selected — translation will fall back to `defaultSourceLanguage` from the plugin config, or to English.',
+                level: 'warning',
+              }
+            }
+
+            return true
+          }),
     }),
   ],
 })
 
-/** ID fisso del documento singleton, usato per fetch/patch diretti. */
-export const LANGUAGE_SETTINGS_DOC_ID = 'autoI18n.languageSettings'
+/** Shape of one row of `supportedLanguages`, as the custom validator above sees it. */
+interface LanguageEntryValue {
+  code?: string
+  label?: string
+  isDefault?: boolean
+}

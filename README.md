@@ -6,10 +6,15 @@ translation. Add `autoI18n.string` / `autoI18n.text` / `autoI18n.blockContent`
 editor for free — plus a one-click **"Translate missing"** action that fills
 in every other configured language from your source text.
 
+![The plugin in Sanity Studio: the Language Settings sidebar entry, the "translations missing" banner mid-run, and per-language tabs on a string, a text and a rich-text field.](https://raw.githubusercontent.com/namecoder1/sanity-plugin-i18n/main/docs/screenshot.png)
+
 ## Requirements
 
-- `sanity` package `^5` or `^6`
-- React 18 or 19
+- `sanity` package `^6.10.0` or later — this is the first release that ships
+  `@sanity/ui` v4, which the plugin's UI is built against. On Sanity `^5` (and on
+  `^6.0`–`^6.9`) the plugin would pull in a second, conflicting copy of `@sanity/ui`.
+- React `^19.2` — required transitively by `@sanity/ui` v4 and by Sanity itself,
+  which peer-depends on React `^19.2.2` from v5 onwards. React 18 is not supported.
 - Node.js `>=20.19 <22` or `>=22.12`
 
 ## Installation
@@ -81,6 +86,16 @@ fields that already have an up-to-date translation** — if you edit the source 
 already translating, the plugin notices on its own and only re-translates that field on
 the next click (it leaves untouched languages, and translations you edited by hand whose
 source hasn't changed since, alone).
+
+Internationalized fields are found **wherever they sit in the document**: at the top
+level, inside object fields (`seo.title`), and inside arrays of objects at any depth
+(`sections[].items[].heading`). The one thing that is skipped is an array item without a
+`_key`, because there is no stable way to address it in a patch.
+
+Translation runs one API call per field per language, and both controls **report progress
+and apply each translation as soon as it arrives**. If a run stops partway — a rate limit,
+an exhausted quota, a dropped connection — everything already translated is kept, and you
+get a message saying how far it got. Clicking again resumes from there.
 
 With `provider: 'azure'` (see below) these two controls disappear: translation no longer
 runs in the browser, but automatically on save, via a Sanity Function.
@@ -159,12 +174,20 @@ autoI18nPlugin({
 extra configuration. No infrastructure to set up or maintain. Recommended to get started,
 for small projects, or if you don't want to manage an Azure account.
 
+> **Where your content goes.** With MyMemory, the text of the fields being translated
+> leaves the editor's browser and is sent to `api.mymemory.translated.net`, a third-party
+> service. MyMemory is a _translation memory_: by design it retains and reuses the
+> segments it receives, which is exactly why it can answer without a paid key. Don't use
+> it for confidential or personal data. Azure Translator, by contrast, states that it does
+> not retain submitted text — and with `provider: 'azure'` the request leaves your Sanity
+> Function, not the editor's browser.
+
 **Azure Translator** (`provider: 'azure'`) — noticeably better translation quality (a real
 machine translation engine, not a translation memory — see "Known limitations"), but
 **requires extra infrastructure**: the Azure subscription key can't live in the Studio's
 browser bundle, so translation runs in a server-side Sanity Function that fires on its own
 whenever a document is saved. See the full step-by-step guide in
-[`azure-function-template/README.md`](./azure-function-template/README.md) — it requires an
+[`azure-function-template/README.md`](https://github.com/namecoder1/sanity-plugin-i18n/blob/main/azure-function-template/README.md) — it requires an
 Azure account (a free tier is available), a few terminal commands (`sanity blueprints`),
 and copying a couple of files into your Studio repo. Not complicated, but not "zero
 config" like MyMemory: if you're just trying out the plugin, start with MyMemory.
@@ -194,10 +217,26 @@ import type {
 } from 'sanity-plugin-i18n'
 ```
 
-`TranslationProvider` is the shape both bundled providers implement — a single
-`translateText(text, from, to)` method. This is also what the Sanity Function in
-`azure-function-template/` is built from, so it's a useful reference for writing your own
-server-side translation Function.
+`TranslationProvider` is the shape both bundled providers implement: a required
+`translateText(text, from, to)`, plus an optional `translateTexts(texts, from, to)` for
+APIs that accept a batch. When a provider implements the batch method, every span of a
+rich-text field is translated in one round trip instead of one call each; when it
+doesn't, the plugin falls back to sequential calls automatically.
+
+### Importing the core outside the Studio
+
+These functions are also available from a second, framework-free entry point:
+
+```ts
+import {buildTranslationPatches, createAzureProvider} from 'sanity-plugin-i18n/core'
+```
+
+`sanity-plugin-i18n/core` pulls in no React, no `@sanity/ui` and nothing from the Studio
+runtime, so it can be imported from a Sanity Function, a migration script or a plain Node
+process. The Azure Function in
+[`azure-function-template/`](https://github.com/namecoder1/sanity-plugin-i18n/blob/main/azure-function-template/README.md)
+is built on it, and is a good reference for writing your own server-side translation
+Function.
 
 ## Known limitations
 
@@ -233,6 +272,27 @@ server-side translation Function.
   Use the same `sourceLang` you configured as `isDefault` in Language Settings (or your
   `defaultSourceLanguage`).
 
+- **`localeValue` is a generic `_type` name**: the plugin recognises an internationalized
+  field by looking for array items with `_type: 'localeValue'`, and that name is not
+  namespaced (everything else in the plugin is, under `autoI18n.`).
+
+  In practice the exposure is narrow. A field is only ever translated if it _also_ has an
+  item keyed with your configured source language, carrying content — so a foreign
+  `localeValue` array keyed by anything else (`k1`, a UUID, a slug) is skipped entirely,
+  with no patch and no entry in the pending count. The one case that would collide is
+  another type named `localeValue` whose items are keyed by exactly your configured
+  language codes; at that point it is indistinguishable from one of ours. Both behaviours
+  are pinned by tests.
+
+  If you do have such a type, rename it on your side — renaming it in the plugin would
+  break every document already stored.
+
+- **The banner is built on a Sanity internal API**: the top-of-form banner is mounted via
+  `document.components.unstable_layout`, which Sanity marks `@internal` — it can change or
+  disappear in a patch release without a deprecation cycle. The component is written
+  defensively (a failure there still renders the document form), and the "Translate
+  missing" toolbar action does the same job without relying on it, but this is worth
+  knowing before pinning a Studio version.
 - **MyMemory is a translation memory, not a real translation engine**: it returns the
   closest match in its database (often extracted from books, academic papers). On short
   or generic text, it can occasionally return fragments unrelated to your source (e.g. a
@@ -240,9 +300,11 @@ server-side translation Function.
   quality score, anomalous length), but it's not an absolute guarantee — this doesn't
   happen with Azure Translator.
 - **Span-by-span translation in rich text**: to preserve bold/italic with APIs that only
-  translate plain text, every "span" in a Portable Text block is translated separately.
-  This can reduce fluency when a sentence is split by inline formatting (e.g. "the
-  **black** cat" translated in two separate calls instead of as one full sentence).
+  translate plain text, every "span" in a Portable Text block is translated as its own
+  segment. This can reduce fluency when a sentence is split by inline formatting (e.g. "the
+  **black** cat" translated as two separate segments instead of as one full sentence). The
+  Azure Function batches these into a single request per field, so the cost is in
+  translation quality, not in the number of API calls.
 - **`autoI18n.blockContent` doesn't support custom objects**: only text blocks
   (paragraphs, headings, quotes, lists) with decorators/links — no inline images, code
   blocks, or other custom block objects inside the translated field. If your regular

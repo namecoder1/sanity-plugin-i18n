@@ -1,32 +1,38 @@
 import {TranslateIcon} from '@sanity/icons/Translate'
 import {Card, Flex, Text, Button} from '@sanity/ui'
 import {useToast} from '@sanity/ui/toast'
-import {useEffect, useState} from 'react'
-import {useClient, useDocumentOperation, useEditState} from 'sanity'
+import {useMemo, useState} from 'react'
+import {useDocumentOperation, useEditState} from 'sanity'
 import type {DocumentLayoutProps} from 'sanity'
 
 import type {AutoI18nConfig} from '../config'
 import {createMyMemoryProvider} from '../lib/providers/mymemory'
 import {
   buildTranslationPatches,
-  fetchLanguageSettings,
+  findInternationalizedFieldPaths,
   findPendingTranslations,
+  resolveLanguages,
 } from '../lib/translationCore'
-
-const API_VERSION = '2023-01-01'
+import {useLanguageSettings} from '../lib/useLanguageSettings'
 
 /**
- * Sostituisce il layout di default del documento aggiungendo, quando ci sono
- * campi internazionalizzati mancanti o obsoleti, una barra sticky in cima al
- * form con un pulsante di traduzione immediata. L'azione "Traduci mancanti"
- * nella toolbar resta disponibile, ma è facile da non notare — questa barra
- * serve a non doverla conoscere in anticipo.
+ * Replaces the default document layout, adding a sticky bar above the form whenever
+ * internationalized fields are missing or out of date, with a button to translate
+ * them on the spot. The "Translate missing" toolbar action does the same job but is
+ * easy to overlook — this bar means you do not have to know about it in advance.
  *
- * Importante: il componente deve restituire un UNICO nodo che avvolge sia la
- * barra sia `renderDefault(props)`. Il pannello documento dello Structure
- * Tool tratta ogni figlio diretto restituito qui come una colonna separata
- * (è un flex row): un Fragment con due figli spezza il layout in due "pannelli"
- * affiancati invece di impilare la barra sopra il form.
+ * Important: the component must return a SINGLE node wrapping both the bar and
+ * `renderDefault(props)`. The Structure Tool's document pane treats every direct
+ * child returned here as a separate column (it is a flex row), so a Fragment with
+ * two children splits the layout into two side-by-side "panes" instead of stacking
+ * the bar above the form.
+ *
+ * MAINTENANCE NOTE: `unstable_layout`, the extension point that mounts this
+ * component, is marked `@internal` in Sanity's types — not `@beta`. It can change
+ * shape or disappear in a patch release, with no deprecation cycle. That is why this
+ * component is written defensively: whatever goes wrong while computing the bar, it
+ * must still let `renderDefault(props)` through, because a plugin cannot afford to
+ * make a document's form unreachable.
  */
 export function createTranslationBanner(config: AutoI18nConfig) {
   const isAzure = config.provider === 'azure'
@@ -34,63 +40,89 @@ export function createTranslationBanner(config: AutoI18nConfig) {
 
   function TranslationBanner(props: DocumentLayoutProps) {
     const {documentId, documentType, renderDefault} = props
-    const client = useClient({apiVersion: API_VERSION})
     const {patch} = useDocumentOperation(documentId, documentType)
     const {draft, published} = useEditState(documentId, documentType)
+    const {languages} = useLanguageSettings()
     const toast = useToast()
 
-    const [pendingCount, setPendingCount] = useState<number | null>(null)
     const [isTranslating, setIsTranslating] = useState(false)
+    const [progress, setProgress] = useState<{done: number; total: number} | null>(null)
 
     const doc = (draft || published) as Record<string, unknown> | undefined
 
-    useEffect(() => {
-      let cancelled = false
-
-      if (doc) {
-        fetchLanguageSettings(client, config)
-          .then(({sourceLang, targetLangs}) => {
-            if (cancelled) return undefined
-            setPendingCount(findPendingTranslations(doc, sourceLang, targetLangs).length)
-            return undefined
-          })
-          .catch(() => {
-            // Nessuna lingua configurata o errore di rete: niente barra, l'azione
-            // in toolbar resta comunque disponibile e mostra l'errore esplicito.
-            if (!cancelled) setPendingCount(null)
-            return undefined
-          })
-      } else {
-        setPendingCount(null)
+    // The count is DERIVED from the document, not recomputed by an effect keyed on
+    // `JSON.stringify(doc)`. That version serialised the entire document on every
+    // render — on every document in the Studio, since the banner is registered
+    // globally — and fired a fresh GROQ query for the languages on every keystroke.
+    // Languages now come from a shared store (one query and one listener for the
+    // whole Studio) and the count is a local computation over data already in memory.
+    //
+    // The dependency is the document's `_rev`, not the document object: it changes
+    // once per applied mutation rather than once per render.
+    const pendingCount = useMemo(() => {
+      if (!doc || languages.length === 0) return 0
+      try {
+        // Shortcut: if the document has no i18n fields at all — the normal case for
+        // most types, since the banner is mounted on all of them — bail out before
+        // resolving languages.
+        if (findInternationalizedFieldPaths(doc).length === 0) return 0
+        const {sourceLang, targetLangs} = resolveLanguages(languages, config)
+        return findPendingTranslations(doc, sourceLang, targetLangs).length
+      } catch (err) {
+        console.error('[auto-i18n] Could not compute pending translations:', err)
+        return 0
       }
-
-      return () => {
-        cancelled = true
-      }
-      // eslint-disable-next-line react-hooks/exhaustive-deps -- doc è un oggetto ricreato ad ogni render dal form, non è una dipendenza stabile
-    }, [client, JSON.stringify(doc)])
+      // eslint-disable-next-line react-hooks/exhaustive-deps -- `doc` is rebuilt on every render by the form; `_rev` changes only when the content really changes
+    }, [doc?._rev, doc === undefined, languages])
 
     const handleTranslate = async () => {
       if (!doc || !provider) return
       setIsTranslating(true)
+      setProgress(null)
+
+      // Each patch is applied the moment it is ready, not all at the end: a run that
+      // stops halfway (rate limit, exhausted quota, network) then keeps everything
+      // that already succeeded instead of discarding it.
+      let applied = 0
+
       try {
-        const {sourceLang, targetLangs} = await fetchLanguageSettings(client, config)
-        const patches = await buildTranslationPatches(doc, sourceLang, targetLangs, provider)
-        if (patches.length > 0) {
-          patch.execute(patches)
+        const {sourceLang, targetLangs} = resolveLanguages(languages, config)
+        if (targetLangs.length === 0) {
+          throw new Error('No target language configured in autoI18n.languageSettings')
         }
-        setPendingCount(0)
-      } catch (err) {
-        console.error('[auto-i18n] Errore durante la traduzione:', err)
-        toast.push({
-          status: 'error',
-          title: 'Translation failed',
-          description: err instanceof Error ? err.message : String(err),
+
+        await buildTranslationPatches(doc, sourceLang, targetLangs, provider, {
+          onPatch: (translationPatch) => {
+            patch.execute([translationPatch])
+            applied += 1
+          },
+          onProgress: (done, total) => setProgress({done, total}),
         })
+
+        toast.push({
+          status: 'success',
+          title:
+            applied === 1 ? 'Translated 1 field' : `Translated ${applied} field/language pairs`,
+        })
+      } catch (err) {
+        console.error('[auto-i18n] Translation failed:', err)
+        const description = err instanceof Error ? err.message : String(err)
+        toast.push(
+          applied > 0
+            ? {
+                status: 'warning',
+                title: `Stopped after ${applied} of ${progress?.total ?? '?'} translations`,
+                description: `${description} — what was already translated has been kept.`,
+              }
+            : {status: 'error', title: 'Translation failed', description},
+        )
       } finally {
         setIsTranslating(false)
+        setProgress(null)
       }
     }
+
+    const showBanner = pendingCount > 0
 
     return (
       <div
@@ -102,7 +134,7 @@ export function createTranslationBanner(config: AutoI18nConfig) {
           minHeight: 0,
         }}
       >
-        {pendingCount ? (
+        {showBanner ? (
           <div style={{flex: '0 0 auto', width: '100%', zIndex: 1}}>
             <Card tone="caution" padding={2} borderBottom>
               <Flex align="center" justify="space-between" gap={3} paddingX={2}>
@@ -115,7 +147,13 @@ export function createTranslationBanner(config: AutoI18nConfig) {
                 {isAzure ? null : (
                   <Button
                     icon={TranslateIcon}
-                    text={isTranslating ? 'Translating...' : 'Translate now'}
+                    text={
+                      isTranslating
+                        ? progress
+                          ? `Translating ${progress.done}/${progress.total}...`
+                          : 'Translating...'
+                        : 'Translate now'
+                    }
                     tone="primary"
                     mode="ghost"
                     fontSize={1}

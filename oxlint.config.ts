@@ -3,35 +3,33 @@ import {defineConfig} from 'oxlint'
 
 export default defineConfig({
   extends: [sanityPluginKitOxlint],
-  // ignorePatterns non si propaga da `extends` (vedi doc del preset) — va
-  // ripetuto esplicitamente insieme alle nostre aggiunte.
+  // `ignorePatterns` is not inherited through `extends` (see the preset's docs), so
+  // the preset's own patterns have to be repeated alongside ours.
   ignorePatterns: [
     ...(sanityPluginKitOxlint.ignorePatterns ?? []),
-    // Template da copiare in un altro repo (Studio), non fa parte del
-    // pacchetto pubblicato: gira in Node su una Sanity Function, con le sue
-    // dipendenze (@sanity/functions, @types/node) installate a parte, non
-    // nel node_modules di questo package — lintarlo qui produce solo falsi
-    // positivi su moduli/globali che semplicemente non sono installati qui.
+    // A template meant to be copied into another repo (a Studio); not part of the
+    // published package. It runs on Node inside a Sanity Function, with its own
+    // dependencies (@sanity/functions, @types/node) installed separately rather than
+    // in this package's node_modules — linting it here only produces false positives
+    // about modules and globals that simply are not installed on this side.
     'azure-function-template/**',
   ],
   rules: {
-    // Il dominio di questo plugin è "documenti Sanity poco tipizzati letti da
-    // JSON" (campi custom, risposte di API di traduzione esterne): le
-    // asserzioni di tipo sono strutturali al problema, non un errore da
-    // evitare. La regola è preziosa in codice applicativo generico, qui è
-    // quasi sempre un falso positivo.
+    // This plugin's domain is "loosely typed Sanity documents read from JSON":
+    // custom fields, responses from third-party translation APIs. Type assertions are
+    // structural to that problem, not a mistake to avoid. The rule is valuable in
+    // general application code; here it is almost always a false positive.
     'typescript/no-unsafe-type-assertion': 'off',
-    // Le chiamate alle API di traduzione DEVONO essere sequenziali: l'ordine
-    // in cui vengono costruite le patch conta, e chiamarle in parallelo
-    // martellerebbe inutilmente API esterne con rate limit stretti (MyMemory
-    // in particolare).
+    // Calls to the translation APIs MUST be sequential: the order in which patches
+    // are built matters, and firing them in parallel would hammer third-party APIs
+    // with tight rate limits — MyMemory above all.
     'no-await-in-loop': 'off',
-    // `props.onComplete()` risulta "deprecated" per il type-checker in questo
-    // setup (probabilmente per un disallineamento tra le versioni di `sanity`
-    // nel devDependency del plugin e nello Studio di test), ma non è marcato
-    // deprecato nei tipi effettivamente usati a runtime né ha un'alternativa
-    // chiara per un'azione documento non-dialog. Da rivedere se in futuro
-    // emerge un'alternativa ufficiale.
+    // `props.onComplete()` reads as "deprecated" to the type-checker in this setup
+    // (most likely a mismatch between the `sanity` version in the plugin's
+    // devDependencies and the one in the test Studio), but it is not marked
+    // deprecated in the types actually used at runtime, and there is no clear
+    // alternative for a non-dialog document action. Revisit if an official
+    // replacement appears.
     'typescript/no-deprecated': 'off',
   },
 })

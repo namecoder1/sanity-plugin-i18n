@@ -31,11 +31,16 @@
       "source": "./src/index.ts",
       "default": "./dist/index.js"
     },
+    "./core": {
+      "source": "./src/core.ts",
+      "default": "./dist/core.js"
+    },
     "./package.json": "./package.json"
   },
   "publishConfig": {
     "exports": {
       ".": "./dist/index.js",
+      "./core": "./dist/core.js",
       "./package.json": "./package.json"
     }
   },
@@ -48,22 +53,27 @@
     "prepublishOnly": "npm run build",
     "test": "vitest run",
     "test:watch": "vitest",
+    "typecheck": "tsc --noEmit",
     "watch": "pkg-utils watch --strict"
   },
   "dependencies": {
-    "@portabletext/editor": "^8.0.2",
     "@sanity/icons": "^5.2.1",
     "@sanity/ui": "^4.0.6"
   },
   "devDependencies": {
     "@commitlint/cli": "^21.2.2",
     "@commitlint/config-conventional": "^21.2.2",
+    "@portabletext/editor": "^8.0.2",
+    "@sanity/browserslist-config": "^1.0.5",
     "@sanity/pkg-utils": "^12.3.0",
     "@sanity/plugin-kit": "^10.0.8",
     "@sanity/semantic-release-preset": "^6.0.0",
+    "@testing-library/dom": "^10.4.1",
+    "@testing-library/react": "^16.3.3",
     "@types/react": "^19.2.18",
     "conventional-changelog-conventionalcommits": "^8.0.0",
     "husky": "^9.1.7",
+    "jsdom": "^30.0.1",
     "lint-staged": "^17.4.1",
     "oxfmt": "^0.63.0",
     "oxlint": "^1.79.0",
@@ -76,9 +86,11 @@
     "vitest": "^4.1.11"
   },
   "peerDependencies": {
-    "react": "^18 || ^19",
-    "sanity": "^5 || ^6.0.0-0"
+    "@portabletext/editor": "^7.11 || ^8",
+    "react": "^19.2",
+    "sanity": "^6.10.0"
   },
+  "browserslist": "extends @sanity/browserslist-config",
   "engines": {
     "node": ">=20.19 <22 || >=22.12"
   },

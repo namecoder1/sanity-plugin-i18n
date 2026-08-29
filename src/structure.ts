@@ -4,12 +4,14 @@ import type {StructureBuilder} from 'sanity/structure'
 import {LANGUAGE_SETTINGS_DOC_ID} from './config'
 
 /**
- * Voce di sidebar pronta per il singleton "Language Settings": salta
- * direttamente al documento con ID fisso, invece della lista generica per
- * tipo (che richiede un documento già esistente e non distingue un
- * singleton da un tipo qualsiasi). Stesso pattern di `S.document()` usato
- * "a mano" nei progetti che configurano un `structure()` custom — vedi
- * `excludeLanguageSettingsType` per toglierlo dalla lista generica sotto.
+ * A ready-made sidebar entry for the "Language Settings" singleton. It jumps
+ * straight to the document with the fixed ID, instead of going through the generic
+ * per-type list — which needs the document to already exist and does not treat a
+ * singleton any differently from an ordinary type.
+ *
+ * It is the same `S.document()` pattern you would hand-build in a custom
+ * `structure()`. Pair it with `excludeLanguageSettingsType` to keep the type from
+ * also appearing in the generic list.
  *
  * ```ts
  * import {structureTool} from 'sanity/structure'
@@ -35,20 +37,20 @@ export function languageSettingsListItem(S: StructureBuilder) {
       .id(LANGUAGE_SETTINGS_DOC_ID)
       .title('Language Settings')
       .icon(EarthGlobeIcon)
-      // Necessario anche qui (non solo dentro .child() sotto): quando Sanity
-      // risolve il pannello dall'URL invece che dall'albero appena costruito,
-      // recupera il tipo da QUESTO schemaType — senza, prova a dedurlo
-      // interrogando il dataset per quell'ID, cosa che fallisce con
-      // "Failed to resolve document, and no type provided in parameters" se
-      // il documento non esiste ancora (nessun documento da cui leggere _type).
+      // Needed here too, not only inside .child() below: when Sanity resolves the
+      // pane from the URL rather than from the tree it just built, it takes the type
+      // from THIS schemaType. Without it, it tries to infer the type by querying the
+      // dataset for that ID, which fails with "Failed to resolve document, and no
+      // type provided in parameters" while the document does not exist yet — there
+      // is no document to read a _type from.
       .schemaType(LANGUAGE_SETTINGS_DOC_ID)
-      // Il child DEVE essere una funzione, non un DocumentBuilder statico: la
-      // navigazione via intent (`router.navigateIntent`, usata dal Tool in
-      // index.ts) ridrilla nel child passandogli l'id incontrato lungo il
-      // percorso — con un valore statico quel secondo passaggio finisce sul
-      // resolver generico di Sanity invece che su questo nodo, che fallisce
-      // con lo stesso errore se il documento non esiste ancora. Ignoriamo
-      // l'id ricevuto: questo pannello punta sempre allo stesso documento.
+      // The child MUST be a function, not a static DocumentBuilder. Intent
+      // navigation (`router.navigateIntent`, used by the Tool in index.ts) drills
+      // into the child again, passing the id it met along the way — with a static
+      // value that second pass lands on Sanity's generic resolver instead of this
+      // node, and fails with the same error while the document does not exist yet.
+      // The id handed in is ignored on purpose: this pane always points at the same
+      // document.
       .child(() =>
         S.document().schemaType(LANGUAGE_SETTINGS_DOC_ID).documentId(LANGUAGE_SETTINGS_DOC_ID),
       )
@@ -56,9 +58,9 @@ export function languageSettingsListItem(S: StructureBuilder) {
 }
 
 /**
- * Toglie il singleton "Language Settings" dalla lista generica per tipo
- * (`S.documentTypeListItems()`), da usare insieme a `languageSettingsListItem`
- * per evitare che compaia due volte nella sidebar.
+ * Removes the "Language Settings" singleton from the generic per-type list
+ * (`S.documentTypeListItems()`). Use it together with `languageSettingsListItem`
+ * so the entry does not show up twice in the sidebar.
  */
 export function excludeLanguageSettingsType<T extends {getId: () => string | undefined}>(
   items: T[],

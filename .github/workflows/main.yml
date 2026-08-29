@@ -54,6 +54,10 @@ jobs:
         # Linting can be skipped
       - run: npm run lint --if-present
         if: github.event.inputs.test != 'false'
+        # The build only type-checks what ends up in the published bundle
+        # (tsconfig.dist.json excludes tests), so this covers the rest of the source.
+      - run: npm run typecheck --if-present
+        if: github.event.inputs.test != 'false'
         # But not the build script, as semantic-release will crash if this command fails so it makes sense to test it early
       - run: npm run prepublishOnly --if-present
 
@@ -115,13 +119,12 @@ jobs:
           cache: npm
           node-version: lts/*
       - run: npm clean-install
-        # npm Trusted Publishing (OIDC) richiede npm CLI >=11.5.1 — quella
-        # imbustata con Node LTS spesso è più vecchia. Nessun NPM_TOKEN in
-        # questo job: la pubblicazione si autentica via OIDC (permesso
-        # `id-token: write` sopra), configurato lato npmjs.com in
-        # "Trusted Publisher" su questo repo/workflow. Il PRIMO publish del
-        # pacchetto va comunque fatto a mano (npm non permette di configurare
-        # un Trusted Publisher su una package che non esiste ancora).
+        # npm Trusted Publishing (OIDC) needs npm CLI >=11.5.1, and the one bundled
+        # with Node LTS is often older. There is no NPM_TOKEN in this job: publishing
+        # authenticates over OIDC (the `id-token: write` permission above), configured
+        # on npmjs.com as a "Trusted Publisher" for this repo/workflow. The FIRST
+        # publish of a package still has to be done by hand — npm will not let you
+        # configure a Trusted Publisher for a package that does not exist yet.
       - run: npm install -g npm@latest
       - run: npm audit signatures
         # Branches that will release new versions are defined in .releaserc.json

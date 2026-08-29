@@ -25,12 +25,13 @@ import {useEffect} from 'react'
 import type {ComponentType} from 'react'
 
 /**
- * Schema per l'editor rich-text nei tab lingua: paragrafi, titoli, citazioni,
- * liste, link, e i decorator grassetto/corsivo/sottolineato/barrato. Deve
- * restare in sincronia con la definizione del campo in
- * `schemaTypes/internationalizedField.ts` (stessi valori di style/listItem/
- * decorator/annotation, sintassi diversa: quello è schema Sanity, questo è
- * schema di @portabletext/editor).
+ * Schema for the rich-text editor inside the language tabs: paragraphs, headings,
+ * quotes, lists, links, and the bold/italic/underline/strike-through decorators.
+ *
+ * Must stay in sync with the field definition in
+ * `schemaTypes/internationalizedField.ts` — same style/listItem/decorator/annotation
+ * values, different syntax, because that one is a Sanity schema and this one is a
+ * @portabletext/editor schema.
  */
 const STYLES = [
   {name: 'normal', title: 'Normal'},
@@ -61,12 +62,13 @@ const ptSchema = defineSchema({
 })
 
 /**
- * Registra COME renderizzare visivamente ogni nodo. Dichiararlo in
- * `defineSchema` (sopra) definisce solo i nomi validi nel modello dati — senza
- * questa registrazione via NodePlugin, i marks/stili vengono applicati ai
- * dati ma non producono alcun markup nel DOM. Costante a livello di modulo
- * (non ricreata ad ogni render) come richiesto dalla doc di NodePlugin, per
- * evitare un ciclo di unregister/re-register ad ogni render.
+ * Registers HOW each node is rendered. Declaring a node in `defineSchema` above only
+ * defines which names are valid in the data model — without this NodePlugin
+ * registration, marks and styles are applied to the data but produce no markup in
+ * the DOM at all.
+ *
+ * Kept as a module-level constant, not rebuilt on each render, as NodePlugin's docs
+ * require: otherwise every render triggers an unregister/re-register cycle.
  */
 const editorNodes = [
   defineDecorator({type: 'strong', render: ({children}) => <strong>{children}</strong>}),
@@ -84,10 +86,10 @@ const editorNodes = [
       </a>
     ),
   }),
-  // Un solo renderer per 'block' che sceglie il wrapper (titolo/citazione/
-  // paragrafo, con o senza marcatore lista) in base a `node.style`/
-  // `node.listItem` — l'engine non ha un concetto di "nodo lista" separato,
-  // è il text-block renderer a doversene occupare (vedi TSDoc del pacchetto).
+  // A single 'block' renderer that picks the wrapper — heading, quote or paragraph,
+  // with or without a list marker — from `node.style` / `node.listItem`. The engine
+  // has no separate notion of a "list node": handling it is the text-block
+  // renderer's job (see the package's TSDoc).
   defineTextBlock({
     type: 'block',
     render: ({node, children}) => {
@@ -133,15 +135,22 @@ const editorNodes = [
   }),
 ]
 
-/** Componente "invisibile" che inoltra ogni cambiamento del contenuto al chiamante. */
+/**
+ * Invisible component that forwards every content change to the caller.
+ *
+ * It hooks into `editor.on('mutation')`, NOT `editor.subscribe()`. The latter fires
+ * on every "relevant transition", which by contract includes plain selection moves.
+ * Forwarding those meant a click or an arrow key inside the editor produced a Sanity
+ * patch with unchanged content — enough to create a draft on a published document
+ * the user never edited. The `mutation` event fires only on real content changes and
+ * already carries the updated value.
+ */
 function ChangeForwarder({onChange}: {onChange: (value: PortableTextBlock[]) => void}) {
   const editor = useEditor()
 
   useEffect(() => {
-    const subscription = editor.subscribe({
-      next: ({context}) => {
-        onChange(context.value || [])
-      },
+    const subscription = editor.on('mutation', ({value}) => {
+      onChange(value || [])
     })
     return () => subscription.unsubscribe()
   }, [editor, onChange])
@@ -167,8 +176,8 @@ function DecoratorButton({
       mode={active ? 'default' : 'bleed'}
       tone={active ? 'primary' : 'default'}
       padding={2}
-      // onMouseDown invece di onClick: previene il blur del contentEditable,
-      // che altrimenti perderebbe la selezione prima che il toggle si applichi.
+      // onMouseDown rather than onClick: it prevents the contentEditable from
+      // blurring, which would drop the selection before the toggle is applied.
       onMouseDown={(event) => {
         event.preventDefault()
         editor.send({type: 'decorator.toggle', decorator})
@@ -195,9 +204,9 @@ function ListButton({listItem, icon}: {listItem: 'bullet' | 'number'; icon: Comp
   )
 }
 
-// Prop chiamata `blockStyle`, non `style`: un prop React chiamato `style` deve
-// essere un oggetto CSS per convenzione (e il linter lo pretende), qui invece
-// è il nome dello style Portable Text ('h1', 'blockquote', ...) — una stringa.
+// The prop is called `blockStyle`, not `style`: a React prop named `style` is
+// expected to be a CSS object by convention (and the linter insists on it), whereas
+// this is the name of a Portable Text style ('h1', 'blockquote', …) — a string.
 function StyleToggleButton({
   blockStyle,
   icon,
@@ -239,13 +248,14 @@ function LinkButton() {
       onMouseDown={(event) => {
         event.preventDefault()
         if (active) {
-          // Sull'annotazione attiva, toggle la rimuove: nessun bisogno di
-          // chiedere l'URL per staccare un link esistente.
+          // On an active annotation, toggling removes it: no need to ask for a URL
+          // just to detach an existing link.
           editor.send({type: 'annotation.toggle', annotation: {name: 'link', value: {}}})
           return
         }
-        // Toolbar minimale, nessun sistema di dialog nel plugin: un prompt
-        // nativo è il compromesso più semplice per l'MVP.
+        // Minimal toolbar, and the plugin has no dialog system: a native prompt is
+        // the simplest workable compromise here. See "Known limitations" in the
+        // README — this is the one piece of UI that is knowingly unpolished.
         const href = window.prompt('Link URL:')
         if (href) {
           editor.send({type: 'annotation.toggle', annotation: {name: 'link', value: {href}}})
@@ -284,21 +294,31 @@ interface PortableTextTabEditorProps {
   value: PortableTextBlock[]
   onChange: (value: PortableTextBlock[]) => void
   placeholder?: string
+  readOnly?: boolean
 }
 
 /**
- * Editor Portable Text per un singolo tab lingua. Viene rimontato ogni volta
- * che il tab torna visibile (vedi InternationalizedInput: il TabPanel non
- * attivo ritorna null), quindi `initialValue` riflette sempre il valore
- * corrente senza bisogno di sincronizzazione esterna.
+ * Portable Text editor for a single language tab. It is remounted every time the tab
+ * becomes visible again (see InternationalizedInput: an inactive TabPanel returns
+ * null), so `initialValue` always reflects the current value with no external
+ * synchronisation needed.
  */
-export function PortableTextTabEditor({value, onChange, placeholder}: PortableTextTabEditorProps) {
+export function PortableTextTabEditor({
+  value,
+  onChange,
+  placeholder,
+  readOnly = false,
+}: PortableTextTabEditorProps) {
   return (
-    <EditorProvider initialConfig={{schemaDefinition: ptSchema, initialValue: value}}>
+    <EditorProvider initialConfig={{schemaDefinition: ptSchema, initialValue: value, readOnly}}>
       <NodePlugin nodes={editorNodes} />
-      <ChangeForwarder onChange={onChange} />
+      {/* Nothing to forward in read-only mode: mounting the forwarder would only
+          risk emitting patches against a document that cannot be edited. */}
+      {readOnly ? null : <ChangeForwarder onChange={onChange} />}
       <Box style={{border: '1px solid var(--card-border-color)', borderRadius: 4}}>
-        <EditorToolbar />
+        {/* A toolbar whose buttons do nothing is worse than no toolbar: it says the
+            field is editable when it is not. */}
+        {readOnly ? null : <EditorToolbar />}
         <Box padding={2} style={{minHeight: 120}}>
           <PortableTextEditable
             style={{minHeight: 100, outline: 'none'}}

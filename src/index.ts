@@ -6,6 +6,7 @@ import {LanguageSettingsTool} from './components/LanguageSettingsTool'
 import {createTranslationBanner} from './components/TranslationBanner'
 import {languageSettingsType} from './config'
 import type {AutoI18nConfig} from './config'
+import {documentTypeHasI18nFields} from './lib/schemaHasI18nFields'
 import {
   internationalizedStringType,
   internationalizedTextType,
@@ -15,33 +16,41 @@ import {
 
 export type {AutoI18nConfig}
 
-// Esportati per l'uso in una Sanity Function server-side (es. il provider
-// Azure, che non può girare nel browser — vedi AutoI18nConfig.provider e
-// src/lib/providers/azure.ts). Il plugin stesso li usa internamente per lo
-// stesso motivo: unica fonte di verità per hashing/staleness/costruzione patch,
-// condivisa tra Studio (MyMemory, sincrono) e Function (Azure, event-driven).
+// Exported for use in a server-side Sanity Function (the Azure provider in
+// particular, which cannot run in the browser — see AutoI18nConfig.provider and
+// src/lib/providers/azure.ts). The plugin uses them internally for the same
+// reason: one source of truth for hashing, staleness and patch building, shared
+// between the Studio (MyMemory, synchronous) and the Function (Azure, event-driven).
 export {
   findInternationalizedFieldPaths,
   findPendingTranslations,
   hasContent,
   hashSourceValue,
   fetchLanguageSettings,
+  resolveLanguages,
   buildTranslationPatches,
 } from './lib/translationCore'
-export type {PendingTranslation, LocaleValue, LanguageEntry} from './lib/translationCore'
+export type {
+  PendingTranslation,
+  LocaleValue,
+  LanguageEntry,
+  TranslationPatch,
+  BuildTranslationPatchesOptions,
+  InternationalizedFieldPath,
+} from './lib/translationCore'
 export type {TranslationProvider} from './lib/providers/types'
 export {createMyMemoryProvider} from './lib/providers/mymemory'
 export {createAzureProvider} from './lib/providers/azure'
 export type {AzureProviderOptions} from './lib/providers/azure'
 export {LANGUAGE_SETTINGS_DOC_ID} from './config'
 
-// Helper opzionali per chi vuole una voce di sidebar dedicata al singleton
-// "Language Settings" invece della lista generica per tipo — vedi TSDoc in
-// structure.ts per l'esempio d'uso in un `structure()` custom.
+// Optional helpers for anyone who wants a dedicated sidebar entry for the
+// "Language Settings" singleton instead of the generic per-type list — see the
+// TSDoc in structure.ts for how to use them in a custom `structure()`.
 export {languageSettingsListItem, excludeLanguageSettingsType} from './structure'
 
 /**
- * Usage in `sanity.config.ts` (o .js)
+ * Usage in `sanity.config.ts` (or .js):
  *
  * ```ts
  * import {defineConfig} from 'sanity'
@@ -52,8 +61,8 @@ export {languageSettingsListItem, excludeLanguageSettingsType} from './structure
  *   plugins: [
  *     autoI18nPlugin({
  *       apiKey: process.env.SANITY_STUDIO_MYMEMORY_KEY,
- *       email: 'tuo@email.com',
- *       defaultSourceLanguage: 'it',
+ *       email: 'you@example.com',
+ *       defaultSourceLanguage: 'en',
  *     }),
  *   ],
  * })
@@ -77,44 +86,41 @@ export const autoI18nPlugin = definePlugin<AutoI18nConfig | void>((config = {}) 
     },
     document: {
       actions: (prev, context) => {
-        // "Impostazioni Lingue" è un singleton (id fisso, tipo nascosto da
-        // liste/menu — vedi languageSettingsType.hidden): niente "Duplica" o
-        // "Elimina", altrimenti un utente potrebbe comunque crearne una
-        // seconda copia o cancellare l'unica esistente.
+        // "Language Settings" is a singleton with a fixed ID, so "Duplicate" and
+        // "Delete" have to go: either one would let a user end up with a second
+        // copy, or with none at all.
         if (context.schemaType === languageSettingsType.name) {
           return prev.filter((action) => !['duplicate', 'delete'].includes(action.action ?? ''))
         }
 
-        // Con provider 'azure' la traduzione non gira nel browser (la key non
-        // può starci): la fa una Sanity Function al salvataggio. L'azione
-        // manuale non avrebbe nulla da eseguire, quindi non la registriamo.
+        // With provider 'azure' translation does not run in the browser (the key
+        // cannot live there): a Sanity Function does it on save. The manual action
+        // would have nothing to run, so it is not registered at all.
         if (resolvedConfig.provider === 'azure') return prev
 
-        // Aggiunge l'azione "Traduci mancanti" a tutti i tipi di documento.
-        // In una versione successiva si può filtrare per context.schemaType
-        // solo sui documenti che effettivamente contengono campi internazionalizzati.
-        //
-        // Viene inserita subito dopo la prima azione (di norma "Publish"), non in coda:
-        // lo Studio mostra come pulsante visibile solo le prime azioni della lista,
-        // le altre finiscono nel menu overflow "···". Metterla in coda (dopo Duplicate/
-        // Delete/Unpublish) la seppelliva in fondo a quel menu.
+        // Only on types that actually have internationalized fields: anywhere else
+        // the action would occupy the space next to "Publish" without being able to
+        // do anything.
+        if (!documentTypeHasI18nFields(context.schema.get(context.schemaType))) return prev
+
+        // Inserted right after the first action (normally "Publish") rather than at
+        // the end: the Studio renders only the leading actions as visible buttons and
+        // pushes the rest into the "···" overflow menu. Appending it (after Duplicate/
+        // Delete/Unpublish) buried it at the bottom of that menu.
         const [primary, ...rest] = prev
         return primary
           ? [primary, createTranslateAction(resolvedConfig), ...rest]
           : [...prev, createTranslateAction(resolvedConfig)]
       },
-      // Banner in cima al form: più difficile da non notare rispetto
-      // all'azione nella toolbar, che resta comunque disponibile.
+      // Banner at the top of the form: harder to miss than the toolbar action,
+      // which stays available all the same.
       components: {
         unstable_layout: createTranslationBanner(resolvedConfig),
       },
-      // Toglie il template del singleton da OGNI punto di creazione: il menu
-      // "+" globale (creationContext.type === 'global') E il "+" del pannello
-      // per-tipo nella Content list di default (creationContext.type ===
-      // 'structure') — a differenza del solo filtro su 'global', questo
-      // copre anche il caso visto nello Studio di test, dove il tipo non è
-      // "hidden" (vedi commento in config.ts) e quindi resta elencato nella
-      // Content list col proprio "+".
+      // Removes the singleton's template from EVERY creation point: the global "+"
+      // menu and the per-type "+" in the default Content list. Filtering only the
+      // global menu was not enough — the type is not hidden (see the comment in
+      // config.ts), so it stays listed in the Content list with its own "+".
       newDocumentOptions: (prev) => {
         return prev.filter((template) => template.templateId !== languageSettingsType.name)
       },
