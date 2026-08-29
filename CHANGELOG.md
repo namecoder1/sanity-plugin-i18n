@@ -5,6 +5,19 @@
 All notable changes to this project will be documented in this file. See
 [Conventional Commits](https://conventionalcommits.org) for commit guidelines.
 
+## [2.0.0](https://github.com/namecoder1/sanity-plugin-i18n/compare/v1.1.1...v2.0.0) (2026-08-29)
+
+### ⚠ BREAKING CHANGES
+
+- peerDependencies now require sanity ^6.10.0 and react ^19.2, and
+  @portabletext/editor moves from dependencies to peerDependencies. Studios on Sanity 5,
+  on 6.0-6.9, or on React 18 are no longer supported; those combinations already pulled a
+  conflicting second copy of @sanity/ui or @portabletext/editor into the bundle.
+
+### Features
+
+- form integration, recursive field discovery, and a framework-free core entry ([#1](https://github.com/namecoder1/sanity-plugin-i18n/issues/1)) ([cc5b629](https://github.com/namecoder1/sanity-plugin-i18n/commit/cc5b629e08a7d889f97f9c2f061576f8e8f95dab))
+
 ## [1.1.1](https://github.com/namecoder1/sanity-plugin-i18n/compare/v1.1.0...v1.1.1) (2026-08-28)
 
 ### Bug Fixes
