@@ -60,6 +60,11 @@ from the Studio's, with its own dependencies to install. Those are `@sanity/func
 `@sanity/client`, and `sanity-plugin-i18n` itself, which is where the translation logic
 comes from.
 
+Keep the `.npmrc` that ships in this folder. It sets `omit=peer`, which stops npm from
+also installing the plugin's peer dependencies — React, `sanity`, `@sanity/ui` — none of
+which this Function imports. Without it the install pulls the whole Studio in: 981
+packages and 564 MB, against 59 packages and 42 MB with it.
+
 ## 4. Initialize the Blueprint (once)
 
 ```sh
