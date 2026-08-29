@@ -11,11 +11,10 @@ import {buildTranslationPatches, fetchLanguageSettings} from '../lib/translation
 const API_VERSION = '2023-01-01'
 
 /**
- * Azione disponibile solo con `provider: 'mymemory'` (default): con
- * `provider: 'azure'` la traduzione non gira nel browser (la subscription
- * key non può starci) ma in una Sanity Function server-side — vedi
- * `createAzureProvider` e `index.ts`, che in quel caso non registra affatto
- * questa azione.
+ * Only available with `provider: 'mymemory'` (the default). With
+ * `provider: 'azure'` translation does not run in the browser — the subscription key
+ * cannot live there — but in a server-side Sanity Function; see `createAzureProvider`
+ * and `index.ts`, which in that case does not register this action at all.
  */
 export function createTranslateAction(config: AutoI18nConfig): DocumentActionComponent {
   const provider = createMyMemoryProvider(config)
@@ -25,37 +24,73 @@ export function createTranslateAction(config: AutoI18nConfig): DocumentActionCom
     const client = useClient({apiVersion: API_VERSION})
     const {patch} = useDocumentOperation(id, type)
     const [isTranslating, setIsTranslating] = useState(false)
+    const [progress, setProgress] = useState<{done: number; total: number} | null>(null)
     const toast = useToast()
 
-    // Cast esplicito: draft/published sono tipizzati come SanityDocument generico,
-    // ma qui sappiamo che i nostri campi custom sono array di LocaleValue.
+    // Explicit cast: draft/published are typed as a generic SanityDocument, but here
+    // we know our custom fields are arrays of LocaleValue.
     const doc = (draft || published) as Record<string, unknown> | undefined
 
     return {
-      label: isTranslating ? 'Translating...' : 'Translate missing',
+      label: isTranslating
+        ? progress
+          ? `Translating ${progress.done}/${progress.total}...`
+          : 'Translating...'
+        : 'Translate missing',
       icon: TranslateIcon,
       disabled: isTranslating || !doc,
       onHandle: async () => {
         if (!doc) return
         setIsTranslating(true)
+        setProgress(null)
+
+        // Incremental application: see `BuildTranslationPatchesOptions.onPatch`. If
+        // the run stops halfway, whatever already succeeded is kept.
+        let applied = 0
+        let total = 0
+
         try {
           const {sourceLang, targetLangs} = await fetchLanguageSettings(client, config)
-          const patches = await buildTranslationPatches(doc, sourceLang, targetLangs, provider)
-
-          if (patches.length > 0) {
-            patch.execute(patches)
+          if (targetLangs.length === 0) {
+            throw new Error('No target language configured in autoI18n.languageSettings')
           }
 
+          await buildTranslationPatches(doc, sourceLang, targetLangs, provider, {
+            onPatch: (translationPatch) => {
+              patch.execute([translationPatch])
+              applied += 1
+            },
+            onProgress: (done, count) => {
+              total = count
+              setProgress({done, total: count})
+            },
+          })
+
+          toast.push({
+            status: applied > 0 ? 'success' : 'info',
+            title:
+              applied === 0
+                ? 'Everything is already translated'
+                : applied === 1
+                  ? 'Translated 1 field'
+                  : `Translated ${applied} field/language pairs`,
+          })
           props.onComplete()
         } catch (err) {
-          console.error('[auto-i18n] Errore durante la traduzione:', err)
-          toast.push({
-            status: 'error',
-            title: 'Translation failed',
-            description: err instanceof Error ? err.message : String(err),
-          })
+          console.error('[auto-i18n] Translation failed:', err)
+          const description = err instanceof Error ? err.message : String(err)
+          toast.push(
+            applied > 0
+              ? {
+                  status: 'warning',
+                  title: `Stopped after ${applied} of ${total || '?'} translations`,
+                  description: `${description} — what was already translated has been kept.`,
+                }
+              : {status: 'error', title: 'Translation failed', description},
+          )
         } finally {
           setIsTranslating(false)
+          setProgress(null)
         }
       },
     }

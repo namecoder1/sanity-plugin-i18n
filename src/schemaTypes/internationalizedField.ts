@@ -4,12 +4,12 @@ import {defineType, defineField, defineArrayMember} from 'sanity'
 import {InternationalizedInput} from '../components/InternationalizedInput'
 
 /**
- * Crea un custom type "internazionalizzato" per un tipo base (string, text, ecc).
- * Il valore salvato è un array del tipo:
- * [{ _key: "it", value: "Ciao" }, { _key: "en", value: "Hello" }]
+ * Builds an "internationalized" custom type on top of a base type (string, text).
+ * The stored value is an array shaped like:
+ * [{_key: 'it', value: 'Ciao'}, {_key: 'en', value: 'Hello'}]
  *
- * Uso in un altro schema:
- * defineField({ name: 'title', type: 'autoI18n.string' })
+ * Used from another schema as:
+ * defineField({name: 'title', type: 'autoI18n.string'})
  */
 export function createInternationalizedFieldType(baseType: 'string' | 'text') {
   return defineType({
@@ -43,14 +43,14 @@ export function createInternationalizedFieldType(baseType: 'string' | 'text') {
         },
       }),
     ],
-    // Sostituisce la resa di default (lista con "Aggiungi elemento") con
-    // il componente a tab, che gestisce _key/lingue in autonomia.
+    // Replaces the default rendering (a list with an "Add item" button) with the
+    // tabbed component, which manages _keys and languages on its own.
     //
-    // Cast necessario: `defineType({type: 'array'})` non narrowa staticamente
-    // il tipo a "array di oggetti", quindi TypeScript genera un'unione con
-    // ArrayOfPrimitivesInputProps che il nostro componente (tipizzato solo per
-    // oggetti LocaleValue) non soddisfa. A runtime non c'è ambiguità: questo
-    // campo sarà sempre un array di oggetti, quindi il cast è sicuro.
+    // The cast is necessary: `defineType({type: 'array'})` does not statically narrow
+    // to "array of objects", so TypeScript produces a union including
+    // ArrayOfPrimitivesInputProps, which our component — typed for LocaleValue
+    // objects only — does not satisfy. At runtime there is no ambiguity: this field
+    // is always an array of objects, so the cast is safe.
     components: {
       input: InternationalizedInput as unknown as ComponentType<any>,
     },
@@ -61,26 +61,25 @@ export const internationalizedStringType = createInternationalizedFieldType('str
 export const internationalizedTextType = createInternationalizedFieldType('text')
 
 /**
- * Lista di stringhe internazionalizzate indipendentemente l'una dall'altra
- * (es. tag), dove OGNI ELEMENTO ha i propri valori per lingua — non un solo
- * `autoI18n.string` (che aggiungerebbe tab lingua all'intera lista, non ai
- * singoli elementi).
+ * A list of strings that are each translated independently — tags, for instance —
+ * where EVERY ITEM carries its own per-language values. Not a single
+ * `autoI18n.string`, which would put language tabs on the list as a whole rather
+ * than on its items.
  *
- * Non è un `array` il cui `of` contiene direttamente `autoI18n.string`: Sanity
- * non supporta un array come membro diretto di un altro array. Ogni elemento
- * è invece un piccolo oggetto (`internationalizedListItem`) con un unico
- * campo `value` di tipo `autoI18n.string` — l'array-dentro-array diventa così
- * array → oggetto → array, che è una struttura dati normale.
+ * It is deliberately not an `array` whose `of` holds `autoI18n.string` directly:
+ * Sanity does not support an array as a direct member of another array. Each item is
+ * instead a small object (`internationalizedListItem`) with a single `value` field of
+ * type `autoI18n.string`, turning array-inside-array into array → object → array,
+ * which is an ordinary data structure.
  *
- * Valore salvato:
+ * Stored value:
  * [
  *   {_key: 'k1', value: [{_key: 'it', value: 'prova'}, {_key: 'en', value: 'test'}]},
  *   {_key: 'k2', value: [{_key: 'it', value: 'formattazione'}, ...]},
  * ]
  *
- * `translationCore.ts` cerca questi campi annidati con un livello di
- * ricorsione dedicato (vedi `findInternationalizedFieldPaths`), costruendo
- * path Sanity tipo `tags[_key=="k1"].value`.
+ * `findInternationalizedFieldPaths` in translationCore.ts walks into these nested
+ * fields and builds Sanity paths such as `tags[_key=="k1"].value`.
  */
 export const internationalizedStringListType = defineType({
   name: 'autoI18n.stringList',
@@ -100,11 +99,13 @@ export const internationalizedStringListType = defineType({
       preview: {
         select: {value: 'value'},
         prepare({value}) {
-          const values = Array.isArray(value) ? value : []
-          const it = values.find((v: {_key?: string}) => v._key === 'it')?.value as
-            | string
-            | undefined
-          return {title: it || values[0]?.value || '(empty)'}
+          // Shows the first language that has content. A preview has no access to
+          // the plugin configuration, so it cannot know which language is the source:
+          // hard-coding one — 'it' used to be hard-coded here, a leftover from the
+          // project's origins — is an arbitrary choice for everyone else.
+          const values = Array.isArray(value) ? (value as {_key?: string; value?: string}[]) : []
+          const first = values.find((entry) => Boolean(entry?.value))
+          return {title: first?.value || '(empty)'}
         },
       },
     }),
@@ -112,13 +113,13 @@ export const internationalizedStringListType = defineType({
 })
 
 /**
- * Variante rich-text: il valore per lingua è un array di blocchi Portable Text
- * invece di una stringa. Supporta paragrafi, titoli (H1-H4), citazioni, liste
- * puntate/numerate, link, e i decorator grassetto/corsivo/sottolineato/barrato.
- * Questa definizione deve restare in sincronia con lo schema dell'editor in
- * `PortableTextTabEditor.tsx` (styles/lists/marks lì usano `name`, qui
- * `value` — stessa lista di valori, sintassi diversa perché sono due schema
- * provenienti da pacchetti diversi).
+ * Rich-text variant: the per-language value is an array of Portable Text blocks
+ * rather than a string. Supports paragraphs, headings (H1–H4), quotes, bulleted and
+ * numbered lists, links, and the bold/italic/underline/strike-through decorators.
+ *
+ * Must stay in sync with the editor schema in `PortableTextTabEditor.tsx`. The
+ * styles/lists/marks there use `name` where these use `value` — same list of values,
+ * different syntax, because they are two schemas from two different packages.
  */
 export const internationalizedBlockContentType = defineType({
   name: 'autoI18n.blockContent',
