@@ -14,6 +14,31 @@ export function hasContent(value: string | PortableTextBlockLike[] | undefined):
   return Array.isArray(value) ? value.length > 0 : Boolean(value)
 }
 
+function hashText(text: string): string {
+  let hash = 0
+  for (let i = 0; i < text.length; i++) {
+    hash = (hash * 31 + text.charCodeAt(i)) | 0
+  }
+  return hash.toString(36)
+}
+
+/**
+ * JSON with every object's keys sorted, so equal content serialises to equal text
+ * whatever order its keys were created in. Arrays keep their order: in Portable
+ * Text that order is the content.
+ */
+function canonicalJson(value: unknown): string {
+  return JSON.stringify(value, (_key, val: unknown) =>
+    val && typeof val === 'object' && !Array.isArray(val)
+      ? Object.fromEntries(
+          Object.keys(val)
+            .sort()
+            .map((key) => [key, (val as Record<string, unknown>)[key]]),
+        )
+      : val,
+  )
+}
+
 /**
  * Hashes the source value as it was at translation time. Not cryptographic — it
  * only has to detect change.
@@ -22,14 +47,34 @@ export function hasContent(value: string | PortableTextBlockLike[] | undefined):
  * a different hash means the source text was edited since, so the existing
  * translation is treated as stale and regenerated even though it already holds a
  * `value`.
+ *
+ * Rich text is hashed with its object keys sorted. The same blocks reach this
+ * function in different key orders: the Studio editor builds them `_type` first,
+ * while the Content Lake returns documents with keys in alphabetical order — after
+ * a publish, a reload, or in a Sanity Function. Hashing them as they came made a
+ * translation done on the draft look stale the moment the document was published.
+ * Sorting matches the Content Lake's own order, so hashes already computed from
+ * stored documents stay valid.
  */
 export function hashSourceValue(value: string | PortableTextBlockLike[]): string {
-  const text = typeof value === 'string' ? value : JSON.stringify(value)
-  let hash = 0
-  for (let i = 0; i < text.length; i++) {
-    hash = (hash * 31 + text.charCodeAt(i)) | 0
-  }
-  return hash.toString(36)
+  return hashText(typeof value === 'string' ? value : canonicalJson(value))
+}
+
+/**
+ * True when a stored `sourceHash` was computed from this exact source. Besides the
+ * current hash it accepts the one 2.1.0 and earlier computed — `JSON.stringify` with
+ * keys in whatever order they arrived — so translations hashed in the editor's key
+ * order are not all re-translated after an upgrade. Either match means the content
+ * is unchanged.
+ */
+function isUpToDate(
+  storedHash: string | undefined,
+  sourceValue: string | PortableTextBlockLike[],
+  sourceHash: string,
+): boolean {
+  if (storedHash === undefined) return false
+  if (storedHash === sourceHash) return true
+  return typeof sourceValue !== 'string' && storedHash === hashText(JSON.stringify(sourceValue))
 }
 
 /**
@@ -274,7 +319,11 @@ export function findPendingTranslations(
 
     for (const targetLang of targetLangs) {
       const existing = values.find((v) => v._key === targetLang)
-      const isStale = existing?.sourceHash !== sourceHash
+      const isStale = !isUpToDate(
+        existing?.sourceHash,
+        sourceValue as string | PortableTextBlockLike[],
+        sourceHash,
+      )
       if (hasContent(existing?.value) && !isStale) continue
       pending.push({fieldPath: path, targetLang})
     }
@@ -390,7 +439,11 @@ export async function buildTranslationPatches(
       // (an entry translated before this check existed, or written by hand) counts
       // as stale and gets regenerated: there is no way to tell whether it still
       // matches the current source.
-      const isStale = existing?.sourceHash !== sourceHash
+      const isStale = !isUpToDate(
+        existing?.sourceHash,
+        sourceValue as string | PortableTextBlockLike[],
+        sourceHash,
+      )
       if (hasContent(existing?.value) && !isStale) continue
 
       const translated = Array.isArray(sourceValue)
