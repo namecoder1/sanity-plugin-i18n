@@ -5,6 +5,12 @@
 All notable changes to this project will be documented in this file. See
 [Conventional Commits](https://conventionalcommits.org) for commit guidelines.
 
+## [2.1.0](https://github.com/namecoder1/sanity-plugin-i18n/compare/v2.0.1...v2.1.0) (2026-10-26)
+
+### Features
+
+- configurable internationalized rich text ([#2](https://github.com/namecoder1/sanity-plugin-i18n/issues/2)) ([1592ee2](https://github.com/namecoder1/sanity-plugin-i18n/commit/1592ee205d9b00368ff0f212b368ceec797e9383))
+
 ## [2.0.1](https://github.com/namecoder1/sanity-plugin-i18n/compare/v2.0.0...v2.0.1) (2026-08-29)
 
 ### Bug Fixes
