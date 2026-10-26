@@ -2,9 +2,10 @@
 
 Field-level internationalization for Sanity Studio, with automatic machine
 translation. Add `autoI18n.string` / `autoI18n.text` / `autoI18n.blockContent`
-/ `autoI18n.stringList` fields to your schemas and get a per-language tab
-editor for free — plus a one-click **"Translate missing"** action that fills
-in every other configured language from your source text.
+/ `autoI18n.stringList` fields to your schemas — or define your own rich-text
+type with exactly the styles, decorators, lists and links you want — and get a
+per-language tab editor for free, plus a one-click **"Translate missing"** action
+that fills in every other configured language from your source text.
 
 ![The plugin in Sanity Studio: the Language Settings sidebar entry, the "translations missing" banner mid-run, and per-language tabs on a string, a text and a rich-text field.](https://raw.githubusercontent.com/namecoder1/sanity-plugin-i18n/main/docs/screenshot.png)
 
@@ -60,7 +61,11 @@ defineField({name: 'tags', type: 'autoI18n.stringList'}) // array of independent
 | `autoI18n.blockContent` | an `array` of `block`  | rich text — see "Rich text support" below                             |
 | `autoI18n.stringList`   | an `array` of `string` | each list item has its own independent per-language value (e.g. tags) |
 
-Each of the first three stores an array `[{_key: 'en', value: '...'}, {_key: 'fr', value: '...'}]`
+Need a rich-text field with a different toolbar (no H1, only bold/italic, relative links,
+localized button labels)? Define your own type with `defineInternationalizedBlockContent`
+— see "Custom rich text" below.
+
+Each of the first three (and every custom rich-text type) stores an array `[{_key: 'en', value: '...'}, {_key: 'fr', value: '...'}]`
 instead of a single value — one tab per language in the Studio editor, handled automatically
 by the plugin. `autoI18n.stringList` nests that same shape inside every list item, so tags
 (or any short repeated string) can each carry their own translations independently.
@@ -70,7 +75,93 @@ by the plugin. `autoI18n.stringList` nests that same shape inside every list ite
 `autoI18n.blockContent` supports paragraphs, headings (H1-H4), quotes, bulleted/numbered
 lists, links, and the bold/italic/underline/strike-through decorators — not custom objects
 or non-text blocks (images, etc. already present in the document are left untouched by
-translation, see "Known limitations" below).
+translation, see "Known limitations" below). Its links use Sanity's `url` type, so only
+absolute URLs validate. Its configuration is frozen for compatibility with data already
+stored: for a different set, or for relative links, define your own type (next section).
+
+### Custom rich text
+
+`defineInternationalizedBlockContent` (since 2.1) defines a rich-text type with the
+styles, decorators, lists and link you choose. The data has the same shape as
+`autoI18n.blockContent`, so translation works the same way.
+
+```ts
+import {defineInternationalizedBlockContent} from 'sanity-plugin-i18n'
+
+export const i18nRichText = defineInternationalizedBlockContent({
+  name: 'richText', // registered as `autoI18n.richText`
+  title: 'Testo',
+  styles: [
+    // subset of normal | h1 | h2 | h3 | h4 | h5 | h6 | blockquote
+    {value: 'normal', title: 'Paragrafo'},
+    {value: 'h2', title: 'Titolo'},
+    {value: 'h3', title: 'Sottotitolo'},
+    {value: 'blockquote', title: 'Citazione'},
+  ],
+  decorators: [
+    // subset of strong | em | code | underline | strike-through
+    {value: 'strong', title: 'Grassetto'},
+    {value: 'em', title: 'Corsivo'},
+  ],
+  lists: [
+    // subset of bullet | number ([] = no lists)
+    {value: 'bullet', title: 'Elenco puntato'},
+    {value: 'number', title: 'Elenco numerato'},
+  ],
+  link: {
+    // false = no links
+    title: 'Link',
+    // optional; without it any non-empty string is accepted
+    validate: (href) =>
+      /^(\/|#|https?:\/\/|mailto:|tel:)/.test(href)
+        ? true
+        : 'Must start with /, #, https://, mailto: or tel:',
+  },
+})
+```
+
+Register it next to your other schema types and use it by its full name:
+
+```ts
+// sanity.config.ts
+schema: {
+  types: [i18nRichText /* , ... */]
+}
+
+// in a document
+defineField({name: 'body', type: 'autoI18n.richText'})
+```
+
+- The type name always gets the `autoI18n.` prefix (it is not doubled if already there):
+  the plugin finds internationalized fields by it, for the "Translate missing" action and
+  banner.
+- Omitting `styles`, `decorators` or `lists` offers everything Sanity's own `block` type
+  offers by default; an empty array offers none. Values outside the lists above throw when
+  the type is defined.
+- `title` is shown in the toolbar tooltips; style buttons show a short label (¶, H2, …).
+- The link's `href` is a `string`, so relative links (`/contact`, `#section`, `mailto:`,
+  `tel:`) are allowed. `validate` runs both as Sanity validation and in the editor, where
+  a rejected link is not applied. `link: {type: 'url'}` keeps Sanity's `url` type instead
+  (that is what `autoI18n.blockContent` uses).
+- Spans marked `code` are not sent to the translation provider: inline code stays as
+  written in every language.
+- The type is yours, not the plugin's: register it in `schema.types` yourself. It still
+  works with everything else the plugin does — tabs, "Translate missing", the banner, the
+  Azure Function — because it is recognised by the `autoI18n.` prefix and stores the same
+  shape as `autoI18n.blockContent`.
+- Switching an existing field from `autoI18n.blockContent` to a custom type needs no
+  migration (same stored shape), as long as the new type allows every style, decorator,
+  list and link already present in the data: anything it does not allow is flagged by
+  Sanity's validation and can no longer be applied from the toolbar.
+
+| Option       | Type                                                                               | Default                                |
+| ------------ | ---------------------------------------------------------------------------------- | -------------------------------------- |
+| `name`       | `string` (required)                                                                | —                                      |
+| `title`      | `string`                                                                           | `'Internationalized text (rich text)'` |
+| `styles`     | `{value: 'normal' \| 'h1'…'h6' \| 'blockquote', title?}[]`                         | all eight                              |
+| `decorators` | `{value: 'strong' \| 'em' \| 'code' \| 'underline' \| 'strike-through', title?}[]` | all five                               |
+| `lists`      | `{value: 'bullet' \| 'number', title?}[]`                                          | both                                   |
+| `link`       | `false \| {title?, type?: 'string' \| 'url', validate?}`                           | `{title: 'Link', type: 'string'}`      |
 
 ## How translation works
 
@@ -192,6 +283,123 @@ Azure account (a free tier is available), a few terminal commands (`sanity bluep
 and copying a couple of files into your Studio repo. Not complicated, but not "zero
 config" like MyMemory: if you're just trying out the plugin, start with MyMemory.
 
+## Integrating into your Studio: best practices
+
+What we do, and what we learned, wiring the plugin into real Studios.
+
+### Set-up order
+
+1. Install the plugin and add `autoI18nPlugin()` to `plugins` (see "Usage").
+2. Open **Language Settings** and add your languages **before** adding fields: until at
+   least one language exists, internationalized fields show an empty state. Mark exactly
+   one as `isDefault` (the source).
+3. Optionally add `languageSettingsListItem(S)` to your `structure()` so the singleton has
+   its own sidebar entry (see "Optional: a dedicated sidebar entry").
+4. Replace fields one at a time (`string` → `autoI18n.string`, rich text →
+   `autoI18n.blockContent` or your own type) and check the document still opens.
+
+### Schema
+
+- **Rich text: define one type per toolbar you need**, in its own file, and register it in
+  `schema.types` next to your documents. Reuse it across documents rather than defining a
+  near-identical type per field:
+
+  ```ts
+  // schemaTypes/richText.ts
+  export const richText = defineInternationalizedBlockContent({name: 'richText' /* ... */})
+
+  // schemaTypes/index.ts
+  export const schema = {types: [richText, post /* ... */]}
+  ```
+
+- **Give the type labels in your Studio's language** (`title` on styles, decorators, lists
+  and link): they become the toolbar tooltips.
+- **Prefer a `string` link with `validate`** over the `url` type when editors need internal
+  links (`/contact`, `#section`, `mailto:`, `tel:`).
+- **Add a `preview`** to every document whose title is an internationalized field (see
+  "Known limitations" for the snippet), and point any `slug` `source` at the source
+  language's value:
+
+  ```ts
+  defineField({
+    name: 'slug',
+    type: 'slug',
+    options: {
+      source: (doc: any) => (doc.title || []).find((v: any) => v._key === 'it')?.value || '',
+    },
+  })
+  ```
+
+- **Per-language rules (e.g. "required in the source language") belong to your schema**,
+  as a `custom` rule on the field: the plugin does not add any.
+
+  ```ts
+  defineField({
+    name: 'title',
+    type: 'autoI18n.string',
+    validation: (rule) =>
+      rule.custom((values?: Array<{_key: string; value?: string}>) =>
+        values?.find((v) => v._key === 'it')?.value ? true : 'Required in Italian',
+      ),
+  })
+  ```
+
+- **Moving an existing `autoI18n.blockContent` field to a custom type** needs no data
+  migration — but first make sure the new type allows everything already stored (an `h1`
+  in old content is flagged once the type drops `h1`).
+
+### Translation provider
+
+- **MyMemory**: `email` alone is enough to raise the rate limit. Only set `apiKey` with a
+  key you know is valid: MyMemory rejects the whole request with `403 AUTHENTICATION
+FAILURE` when the key does not match, rather than ignoring it.
+- **Azure**: build the Function on `sanity-plugin-i18n/core` (see
+  [`azure-function-template/`](https://github.com/namecoder1/sanity-plugin-i18n/blob/main/azure-function-template/README.md))
+  instead of copying the translation logic into it, and keep its `sanity-plugin-i18n`
+  version in step with the Studio's — otherwise fixes such as leaving inline code
+  untranslated never reach the Function. With `provider: 'azure'` the "Translate missing"
+  action is not registered, so test that action with MyMemory.
+
+### Reading the content on your site
+
+Each field is an array keyed by language; pick the requested language and fall back to
+the source one in GROQ:
+
+```groq
+*[_type == "post" && slug.current == $slug][0]{
+  "title": coalesce(title[_key == $lang][0].value, title[_key == "it"][0].value),
+  "body": coalesce(body[_key == $lang][0].value, body[_key == "it"][0].value)
+}
+```
+
+`body` is then ordinary Portable Text: render it with `@portabletext/react` (or your
+framework's equivalent) like any other block content.
+
+### Testing an unreleased build in a Studio
+
+Keep a dedicated test Studio with a document that has every field type: internationalized
+fields at the top level, inside an `object` and inside an array of objects, next to plain
+non-internationalized fields (numbers, images, references…), so a change that breaks field
+discovery or coexistence shows up immediately. Then:
+
+1. In the plugin: `npm run build && npx yalc publish` (later builds: `npx yalc publish --push`).
+2. In the Studio: `npx yalc add sanity-plugin-i18n` once, `npx yalc update` afterwards.
+3. Clear Vite's cache before starting, or the Studio may keep serving the previous build:
+   `rm -rf node_modules/.sanity && npm run dev`.
+4. Check: the toolbar of each rich-text type, links (valid and rejected), "Translate
+   missing" and the banner (with MyMemory), the stored shape in Vision, and that opening a
+   published document without typing does not create a draft.
+
+### Troubleshooting
+
+| Symptom                                                | Cause and fix                                                                                                                  |
+| ------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------ |
+| `MyMemory API error 403: AUTHENTICATION FAILURE`       | Invalid `apiKey`: remove it (keep `email`) or replace it.                                                                      |
+| `Incompatible React versions` when starting the Studio | `react` and `react-dom` installed at different versions, typically after upgrading `sanity`: install both at the same version. |
+| No "Translate missing" action or banner on a document  | No field of a type named `autoI18n.*` in it, or `provider: 'azure'` (no action by design).                                     |
+| A custom rich-text type does not show its toolbar      | The type is not registered in `schema.types`, or the field references it without the `autoI18n.` prefix.                       |
+| Toolbar still shows options you removed                | The Studio is serving an old build: clear `node_modules/.sanity` and restart.                                                  |
+
 ## Advanced: building a custom translation provider
 
 If neither MyMemory nor Azure fits (e.g. you want DeepL, or an in-house translation
@@ -241,7 +449,8 @@ Function.
 ## Known limitations
 
 - **Document previews (list rows, the document title bar) break by default**: since
-  `autoI18n.string` / `autoI18n.text` / `autoI18n.blockContent` store an array of
+  `autoI18n.string` / `autoI18n.text` / `autoI18n.blockContent` (and custom rich-text
+  types) store an array of
   `{_key, value, sourceHash}` instead of a plain string, Sanity Studio's automatic preview
   (which expects a field literally named `title` to be a string) can't derive a title from
   it and falls back to showing the raw serialized array. Fix it by adding an explicit
@@ -304,15 +513,25 @@ Function.
   segment. This can reduce fluency when a sentence is split by inline formatting (e.g. "the
   **black** cat" translated as two separate segments instead of as one full sentence). The
   Azure Function batches these into a single request per field, so the cost is in
-  translation quality, not in the number of API calls.
+  translation quality, not in the number of API calls. Spans marked `code` are skipped.
 - **`autoI18n.blockContent` doesn't support custom objects**: only text blocks
   (paragraphs, headings, quotes, lists) with decorators/links — no inline images, code
   blocks, or other custom block objects inside the translated field. If your regular
   block content needs those, keep them out of `autoI18n.blockContent` or handle them in
-  a separate field.
+  a separate field. The same holds for types made with `defineInternationalizedBlockContent`:
+  they choose among the built-in styles/decorators/lists/link, they cannot add custom
+  annotations or objects.
+- **The plugin's own interface is in English**: toolbar tooltips follow the `title`s you
+  pass to `defineInternationalizedBlockContent`, but placeholders ("Text in …"), the
+  "(source)" tab marker, "Translate missing" and "Language Settings" are not translatable
+  yet.
 - **Links in the editor are created via a browser prompt** (`window.prompt`), not a real
-  dialog — simple but unpolished: no URL validation, and editing an existing link means
-  removing and re-creating it rather than editing it in place.
+  dialog — simple but unpolished: a link rejected by `validate` is reported with
+  `window.alert`, and editing an existing link means removing and re-creating it rather
+  than editing it in place.
+- **`autoI18n.blockContent` links use Sanity's `url` type**, so relative links
+  (`/contact`, `mailto:`) fail validation there. This is configurable from 2.1: define
+  your own type with `defineInternationalizedBlockContent` (see "Custom rich text").
 
 ## License
 
@@ -325,6 +544,19 @@ with default configuration for build & watch scripts.
 
 See [Testing a plugin in Sanity Studio](https://github.com/sanity-io/plugins/tree/main/packages/@sanity/plugin-kit#testing-a-plugin-in-sanity-studio)
 on how to run this plugin with hotreload in the studio.
+
+Before opening a PR, run what CI runs:
+
+```sh
+npm run lint && npm run typecheck && npm test && npm run build
+```
+
+Tests sit next to the code they cover (`*.test.ts(x)`, Vitest). Component tests opt into
+jsdom per file; everything else runs on plain Node. `schemaTypes/internationalizedField.test.ts`
+compiles a real Sanity schema, so a definition Sanity would reject fails the suite.
+
+To try an unreleased build in a real Studio, see "Testing an unreleased build in a Studio"
+above (yalc), or use `npm run link-watch` for hot reload.
 
 ### Release new version
 

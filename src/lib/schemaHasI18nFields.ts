@@ -1,6 +1,7 @@
 /**
  * Prefix shared by every type the plugin registers
- * (`autoI18n.string`, `.text`, `.blockContent`, `.stringList`).
+ * (`autoI18n.string`, `.text`, `.blockContent`, `.stringList`) and by every rich-text
+ * type made with `defineInternationalizedBlockContent`, which always adds it.
  */
 const TYPE_PREFIX = 'autoI18n.'
 

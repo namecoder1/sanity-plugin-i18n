@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import {ThemeProvider, studioTheme} from '@sanity/ui'
-import {render, screen} from '@testing-library/react'
+import {fireEvent, render, screen} from '@testing-library/react'
 import type {ReactElement} from 'react'
 import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest'
 
@@ -31,6 +31,8 @@ vi.mock('sanity', async () => {
 })
 
 const {InternationalizedInput} = await import('./InternationalizedInput')
+const {defineInternationalizedBlockContent, internationalizedBlockContentType} =
+  await import('../schemaTypes/internationalizedField')
 
 function renderInput(overrides: Record<string, unknown> = {}): {
   onChange: ReturnType<typeof vi.fn>
@@ -140,5 +142,183 @@ describe('InternationalizedInput', () => {
       </ThemeProvider>,
     )
     expect(screen.getByText(/No language configured/)).toBeTruthy()
+  })
+})
+
+describe('InternationalizedInput with rich text', () => {
+  const richText = defineInternationalizedBlockContent({
+    name: 'richText',
+    styles: [
+      {value: 'normal', title: 'Paragrafo'},
+      {value: 'h2', title: 'Titolo'},
+      {value: 'h3', title: 'Sottotitolo'},
+      {value: 'blockquote', title: 'Citazione'},
+    ],
+    decorators: [
+      {value: 'strong', title: 'Grassetto'},
+      {value: 'em', title: 'Corsivo'},
+    ],
+    lists: [
+      {value: 'bullet', title: 'Elenco puntato'},
+      {value: 'number', title: 'Elenco numerato'},
+    ],
+    link: {title: 'Collegamento'},
+  })
+
+  const blocks = [
+    {
+      _type: 'block',
+      _key: 'b1',
+      style: 'normal',
+      markDefs: [],
+      children: [{_type: 'span', _key: 's1', marks: [], text: 'Ciao mondo'}],
+    },
+  ]
+
+  function renderRichText(schemaType: unknown) {
+    renderInput({schemaType, value: [{_key: 'en', _type: 'localeValue', value: blocks}]})
+  }
+
+  const buttonLabels = () =>
+    screen
+      .getAllByRole('button')
+      .map((button) => button.getAttribute('aria-label'))
+      .filter(Boolean)
+
+  it('renders the rich-text editor for a type made with defineInternationalizedBlockContent', async () => {
+    renderRichText({name: richText.name, options: richText.options})
+    expect(await screen.findByText('Ciao mondo')).toBeTruthy()
+    expect(screen.queryByDisplayValue('Ciao mondo')).toBeNull()
+  })
+
+  it('shows only the configured toolbar buttons, with the configured titles', async () => {
+    renderRichText({name: richText.name, options: richText.options})
+    await screen.findByText('Ciao mondo')
+    expect(buttonLabels()).toEqual([
+      'Paragrafo',
+      'Titolo',
+      'Sottotitolo',
+      'Citazione',
+      'Grassetto',
+      'Corsivo',
+      'Elenco puntato',
+      'Elenco numerato',
+      'Collegamento',
+    ])
+    // Short label on the button, the configured title in the tooltip.
+    expect(screen.getByRole('button', {name: 'Sottotitolo'}).textContent).toBe('H3')
+    expect(screen.queryByText('H1')).toBeNull()
+  })
+
+  it('rejects a link the configured validate refuses, before applying it', async () => {
+    const validated = defineInternationalizedBlockContent({
+      name: 'validated',
+      link: {validate: (href) => (/^(\/|#|https?:\/\/)/.test(href) ? true : 'Bad link')},
+    })
+    renderRichText({name: validated.name, options: validated.options})
+    await screen.findByText('Ciao mondo')
+    const alert = vi.spyOn(window, 'alert').mockImplementation(() => {})
+    const prompt = vi.spyOn(window, 'prompt')
+
+    prompt.mockReturnValueOnce('ftp://x')
+    fireEvent.mouseDown(screen.getByRole('button', {name: 'Link'}))
+    expect(alert).toHaveBeenCalledWith('Bad link')
+
+    alert.mockClear()
+    prompt.mockReturnValueOnce('/contatti')
+    fireEvent.mouseDown(screen.getByRole('button', {name: 'Link'}))
+    expect(alert).not.toHaveBeenCalled()
+
+    alert.mockRestore()
+    prompt.mockRestore()
+  })
+
+  it('numbers list items by position, restarting after a paragraph', async () => {
+    const block = (key: string, text: string, listItem?: string) => ({
+      _type: 'block',
+      _key: key,
+      style: 'normal',
+      markDefs: [],
+      ...(listItem ? {listItem, level: 1} : {}),
+      children: [{_type: 'span', _key: `${key}s`, marks: [], text}],
+    })
+    renderInput({
+      schemaType: {name: richText.name, options: richText.options},
+      value: [
+        {
+          _key: 'en',
+          _type: 'localeValue',
+          value: [
+            block('a', 'Uno', 'number'),
+            block('b', 'Due', 'number'),
+            block('c', 'Tre', 'number'),
+            block('p', 'Paragrafo'),
+            block('d', 'Ancora uno', 'number'),
+          ],
+        },
+      ],
+    })
+    await screen.findByText('Tre')
+    const markers = [...document.querySelectorAll('[contenteditable="false"]')]
+      .map((el) => el.textContent)
+      .filter((text) => /^\d+\.$/.test(text ?? ''))
+    expect(markers).toEqual(['1.', '2.', '3.', '1.'])
+  })
+
+  it('becomes editable when the form leaves read-only after mounting', async () => {
+    // The Studio mounts the form read-only while the document loads, then flips it.
+    // The editor only reads readOnly at mount, so without syncing it stayed locked
+    // until a tab switch remounted it.
+    const props = {
+      value: [{_key: 'en', _type: 'localeValue', value: blocks}],
+      onChange: vi.fn(),
+      schemaType: {name: richText.name, options: richText.options},
+      elementProps: {id: 'field-body'},
+      validation: [],
+      presence: [],
+    }
+    const view = (readOnly: boolean) => (
+      <ThemeProvider theme={studioTheme}>
+        {(<InternationalizedInput {...(props as any)} readOnly={readOnly} />) as ReactElement}
+      </ThemeProvider>
+    )
+    const {rerender} = render(view(true))
+    await screen.findByText('Ciao mondo')
+    const editable = () => document.querySelector('[data-pt-editor]')
+    expect(editable()?.getAttribute('contenteditable')).toBe('false')
+
+    rerender(view(false))
+    await vi.waitFor(() => expect(editable()?.getAttribute('contenteditable')).toBe('true'))
+  })
+
+  it('has no link button with link: false', async () => {
+    const noLink = defineInternationalizedBlockContent({name: 'noLink', link: false})
+    renderRichText({name: noLink.name, options: noLink.options})
+    await screen.findByText('Ciao mondo')
+    expect(screen.queryByRole('button', {name: 'Link'})).toBeNull()
+  })
+
+  it.each([
+    ['with its options', {name: 'autoI18n.blockContent', options: undefined as unknown}],
+    ['by name alone', {name: 'autoI18n.blockContent'}],
+  ])('still shows every autoI18n.blockContent button (%s)', async (_label, schemaType) => {
+    if ('options' in schemaType) schemaType.options = internationalizedBlockContentType.options
+    renderRichText(schemaType)
+    await screen.findByText('Ciao mondo')
+    expect(buttonLabels()).toEqual([
+      'Normal',
+      'Heading 1',
+      'Heading 2',
+      'Heading 3',
+      'Heading 4',
+      'Quote',
+      'Bold',
+      'Italic',
+      'Underline',
+      'Strike',
+      'Bullet',
+      'Numbered',
+      'Link',
+    ])
   })
 })

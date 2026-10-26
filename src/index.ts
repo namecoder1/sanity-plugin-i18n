@@ -16,6 +16,18 @@ import {
 
 export type {AutoI18nConfig}
 
+// Custom rich-text types with a chosen subset of styles/decorators/lists/link. Studio
+// only (the returned type renders the plugin's input), so not part of `./core`.
+export {defineInternationalizedBlockContent} from './schemaTypes/internationalizedField'
+export type {InternationalizedBlockContentOptions} from './schemaTypes/internationalizedField'
+export type {
+  BlockContentDecorator,
+  BlockContentLinkOptions,
+  BlockContentList,
+  BlockContentOption,
+  BlockContentStyle,
+} from './lib/blockContentConfig'
+
 // Exported for use in a server-side Sanity Function (the Azure provider in
 // particular, which cannot run in the browser — see AutoI18nConfig.provider and
 // src/lib/providers/azure.ts). The plugin uses them internally for the same

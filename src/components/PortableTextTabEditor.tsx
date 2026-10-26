@@ -14,52 +14,61 @@ import {NodePlugin} from '@portabletext/editor/plugins'
 import {isActiveAnnotation, isActiveListItem, isActiveStyle} from '@portabletext/editor/selectors'
 import {BlockquoteIcon} from '@sanity/icons/Blockquote'
 import {BoldIcon} from '@sanity/icons/Bold'
+import {CodeIcon} from '@sanity/icons/Code'
 import {ItalicIcon} from '@sanity/icons/Italic'
 import {LinkIcon} from '@sanity/icons/Link'
 import {OlistIcon} from '@sanity/icons/Olist'
 import {StrikethroughIcon} from '@sanity/icons/Strikethrough'
 import {UlistIcon} from '@sanity/icons/Ulist'
 import {UnderlineIcon} from '@sanity/icons/Underline'
-import {Box, Button, Flex, Text} from '@sanity/ui'
+import {Box, Button, Flex, useTheme_v2} from '@sanity/ui'
 import {useEffect} from 'react'
 import type {ComponentType} from 'react'
 
-/**
- * Schema for the rich-text editor inside the language tabs: paragraphs, headings,
- * quotes, lists, links, and the bold/italic/underline/strike-through decorators.
- *
- * Must stay in sync with the field definition in
- * `schemaTypes/internationalizedField.ts` — same style/listItem/decorator/annotation
- * values, different syntax, because that one is a Sanity schema and this one is a
- * @portabletext/editor schema.
- */
-const STYLES = [
-  {name: 'normal', title: 'Normal'},
-  {name: 'h1', title: 'Heading 1'},
-  {name: 'h2', title: 'Heading 2'},
-  {name: 'h3', title: 'Heading 3'},
-  {name: 'h4', title: 'Heading 4'},
-  {name: 'blockquote', title: 'Quote'},
-] as const
+import {
+  validateHref,
+  type BlockContentDecorator,
+  type BlockContentList,
+  type ResolvedBlockContentConfig,
+} from '../lib/blockContentConfig'
+import {computeListNumbers} from '../lib/listNumbers'
 
-const ptSchema = defineSchema({
-  decorators: [
-    {name: 'strong', title: 'Bold'},
-    {name: 'em', title: 'Italic'},
-    {name: 'underline', title: 'Underline'},
-    {name: 'strike-through', title: 'Strike'},
-  ],
-  styles: STYLES.map(({name, title}) => ({name, title})),
-  annotations: [
-    {name: 'link', title: 'Link', fields: [{name: 'href', title: 'URL', type: 'string'}]},
-  ],
-  lists: [
-    {name: 'bullet', title: 'Bullet'},
-    {name: 'number', title: 'Numbered'},
-  ],
-  inlineObjects: [],
-  blockObjects: [],
-})
+/**
+ * Editor schema for one configuration: the same styles/lists/decorators as the
+ * Sanity schema built by `defineInternationalizedBlockContent`, in
+ * @portabletext/editor syntax (`name` where Sanity uses `value`).
+ *
+ * Cached per configuration object rather than rebuilt per render: `EditorProvider`
+ * reads `initialConfig` once, and the configuration lives on the schema type, so it
+ * is the same object for as long as the Studio's schema is.
+ */
+const schemaCache = new WeakMap<ResolvedBlockContentConfig, ReturnType<typeof defineSchema>>()
+
+function getEditorSchema(config: ResolvedBlockContentConfig) {
+  let schema = schemaCache.get(config)
+  if (!schema) {
+    const toNames = (options: Array<{value: string; title: string}>) =>
+      options.map(({value, title}) => ({name: value, title}))
+    schema = defineSchema({
+      decorators: toNames(config.decorators),
+      styles: toNames(config.styles),
+      annotations: config.link
+        ? [
+            {
+              name: 'link',
+              title: config.link.title,
+              fields: [{name: 'href', title: 'URL', type: 'string'}],
+            },
+          ]
+        : [],
+      lists: toNames(config.lists),
+      inlineObjects: [],
+      blockObjects: [],
+    })
+    schemaCache.set(config, schema)
+  }
+  return schema
+}
 
 /**
  * Registers HOW each node is rendered. Declaring a node in `defineSchema` above only
@@ -68,11 +77,14 @@ const ptSchema = defineSchema({
  * the DOM at all.
  *
  * Kept as a module-level constant, not rebuilt on each render, as NodePlugin's docs
- * require: otherwise every render triggers an unregister/re-register cycle.
+ * require: otherwise every render triggers an unregister/re-register cycle. It holds
+ * every node any configuration can use; a renderer for a decorator the current
+ * schema does not declare is simply never called.
  */
 const editorNodes = [
   defineDecorator({type: 'strong', render: ({children}) => <strong>{children}</strong>}),
   defineDecorator({type: 'em', render: ({children}) => <em>{children}</em>}),
+  defineDecorator({type: 'code', render: ({children}) => <code>{children}</code>}),
   defineDecorator({type: 'underline', render: ({children}) => <u>{children}</u>}),
   defineDecorator({type: 'strike-through', render: ({children}) => <s>{children}</s>}),
   defineAnnotation({
@@ -97,11 +109,18 @@ const editorNodes = [
       const listItem = (node as {listItem?: string}).listItem
       const level = (node as {level?: number}).level || 1
 
+      // Plain elements that inherit the editable's typography, not @sanity/ui's
+      // <Text>: that one sets its own font size and trims its line box with negative
+      // margins, so a marker drawn with it sat lower than the text beside it.
       const content = listItem ? (
-        <Flex gap={2}>
-          <Text style={{paddingLeft: (level - 1) * 20}}>{listItem === 'number' ? '1.' : '•'}</Text>
-          <Box flex={1}>{children}</Box>
-        </Flex>
+        <div
+          style={{display: 'flex', alignItems: 'baseline', gap: 8, paddingLeft: (level - 1) * 20}}
+        >
+          <span contentEditable={false} style={{userSelect: 'none', flexShrink: 0}}>
+            {listItem === 'number' ? <ListNumber blockKey={node._key} /> : '•'}
+          </span>
+          <div style={{flex: 1, minWidth: 0}}>{children}</div>
+        </div>
       ) : (
         children
       )
@@ -115,6 +134,10 @@ const editorNodes = [
           return <h3 style={{margin: 0}}>{content}</h3>
         case 'h4':
           return <h4 style={{margin: 0}}>{content}</h4>
+        case 'h5':
+          return <h5 style={{margin: 0}}>{content}</h5>
+        case 'h6':
+          return <h6 style={{margin: 0}}>{content}</h6>
         case 'blockquote':
           return (
             <blockquote
@@ -134,6 +157,40 @@ const editorNodes = [
     },
   }),
 ]
+
+/**
+ * The "1." / "2." in front of a numbered list item. The block renderer only sees its
+ * own block, so the position comes from the editor's whole value — computed once per
+ * value for all items (see computeListNumbers), and selected as a number so an item
+ * re-renders only when its own position changes.
+ */
+function ListNumber({blockKey}: {blockKey: string}) {
+  const editor = useEditor()
+  const position = useEditorSelector(
+    editor,
+    (snapshot) => computeListNumbers(snapshot.context.value).get(blockKey) ?? 1,
+  )
+  return <>{position}.</>
+}
+
+/**
+ * Keeps the editor's read-only state in step with the form's.
+ *
+ * `EditorProvider` reads `initialConfig.readOnly` once, at mount. The Studio mounts
+ * the form read-only while the document is still loading and flips it a moment later,
+ * so an editor mounted in that window stayed locked — toolbar back, caret refused —
+ * until a tab switch remounted it. `update readOnly` is the editor's public event for
+ * changing it after mount.
+ */
+function ReadOnlySync({readOnly}: {readOnly: boolean}) {
+  const editor = useEditor()
+
+  useEffect(() => {
+    editor.send({type: 'update readOnly', readOnly})
+  }, [editor, readOnly])
+
+  return null
+}
 
 /**
  * Invisible component that forwards every content change to the caller.
@@ -158,13 +215,20 @@ function ChangeForwarder({onChange}: {onChange: (value: PortableTextBlock[]) => 
   return null
 }
 
-function DecoratorButton({
-  decorator,
-  icon,
-}: {
-  decorator: 'strong' | 'em' | 'underline' | 'strike-through'
-  icon: ComponentType
-}) {
+const DECORATOR_ICONS: Record<BlockContentDecorator, ComponentType> = {
+  'strong': BoldIcon,
+  'em': ItalicIcon,
+  'code': CodeIcon,
+  'underline': UnderlineIcon,
+  'strike-through': StrikethroughIcon,
+}
+
+const LIST_ICONS: Record<BlockContentList, ComponentType> = {
+  bullet: UlistIcon,
+  number: OlistIcon,
+}
+
+function DecoratorButton({decorator, title}: {decorator: BlockContentDecorator; title: string}) {
   const editor = useEditor()
   const active = useEditorSelector(editor, (snapshot) =>
     Boolean(snapshot.decoratorState[decorator]),
@@ -172,7 +236,9 @@ function DecoratorButton({
 
   return (
     <Button
-      icon={icon}
+      icon={DECORATOR_ICONS[decorator]}
+      title={title}
+      aria-label={title}
       mode={active ? 'default' : 'bleed'}
       tone={active ? 'primary' : 'default'}
       padding={2}
@@ -186,13 +252,15 @@ function DecoratorButton({
   )
 }
 
-function ListButton({listItem, icon}: {listItem: 'bullet' | 'number'; icon: ComponentType}) {
+function ListButton({listItem, title}: {listItem: BlockContentList; title: string}) {
   const editor = useEditor()
   const active = useEditorSelector(editor, isActiveListItem(listItem))
 
   return (
     <Button
-      icon={icon}
+      icon={LIST_ICONS[listItem]}
+      title={title}
+      aria-label={title}
       mode={active ? 'default' : 'bleed'}
       tone={active ? 'primary' : 'default'}
       padding={2}
@@ -207,22 +275,25 @@ function ListButton({listItem, icon}: {listItem: 'bullet' | 'number'; icon: Comp
 // The prop is called `blockStyle`, not `style`: a React prop named `style` is
 // expected to be a CSS object by convention (and the linter insists on it), whereas
 // this is the name of a Portable Text style ('h1', 'blockquote', …) — a string.
-function StyleToggleButton({
-  blockStyle,
-  icon,
-  text,
-}: {
-  blockStyle: string
-  icon?: ComponentType
-  text?: string
-}) {
+//
+// The button shows a short label (¶, H2, …, or the quote icon) and puts the
+// configured title — which may be long, "Sottotitolo" — in the tooltip.
+function StyleToggleButton({blockStyle, title}: {blockStyle: string; title: string}) {
   const editor = useEditor()
   const active = useEditorSelector(editor, isActiveStyle(blockStyle))
 
   return (
     <Button
-      icon={icon}
-      text={text}
+      icon={blockStyle === 'blockquote' ? BlockquoteIcon : undefined}
+      text={
+        blockStyle === 'blockquote'
+          ? undefined
+          : blockStyle === 'normal'
+            ? '¶'
+            : blockStyle.toUpperCase()
+      }
+      title={title}
+      aria-label={title}
       mode={active ? 'default' : 'bleed'}
       tone={active ? 'primary' : 'default'}
       padding={2}
@@ -235,13 +306,15 @@ function StyleToggleButton({
   )
 }
 
-function LinkButton() {
+function LinkButton({link}: {link: Exclude<ResolvedBlockContentConfig['link'], false>}) {
   const editor = useEditor()
   const active = useEditorSelector(editor, isActiveAnnotation('link'))
 
   return (
     <Button
       icon={LinkIcon}
+      title={link.title}
+      aria-label={link.title}
       mode={active ? 'default' : 'bleed'}
       tone={active ? 'primary' : 'default'}
       padding={2}
@@ -256,16 +329,23 @@ function LinkButton() {
         // Minimal toolbar, and the plugin has no dialog system: a native prompt is
         // the simplest workable compromise here. See "Known limitations" in the
         // README — this is the one piece of UI that is knowingly unpolished.
-        const href = window.prompt('Link URL:')
-        if (href) {
-          editor.send({type: 'annotation.toggle', annotation: {name: 'link', value: {href}}})
+        const href = window.prompt(`${link.title} URL:`)
+        if (!href) return
+        // Same check the Sanity schema runs on save, done up front: a link the
+        // schema would reject is not applied at all, rather than applied and then
+        // flagged as a validation error the user has to go and find.
+        const result = validateHref(link, href)
+        if (result !== true) {
+          window.alert(result)
+          return
         }
+        editor.send({type: 'annotation.toggle', annotation: {name: 'link', value: {href}}})
       }}
     />
   )
 }
 
-function EditorToolbar() {
+function EditorToolbar({config}: {config: ResolvedBlockContentConfig}) {
   return (
     <Flex
       gap={1}
@@ -274,23 +354,23 @@ function EditorToolbar() {
       wrap="wrap"
       style={{borderBottom: '1px solid var(--card-border-color)'}}
     >
-      <StyleToggleButton blockStyle="normal" text="¶" />
-      {STYLES.filter((s) => s.name !== 'normal' && s.name !== 'blockquote').map((s) => (
-        <StyleToggleButton key={s.name} blockStyle={s.name} text={s.name.toUpperCase()} />
+      {config.styles.map((s) => (
+        <StyleToggleButton key={s.value} blockStyle={s.value} title={s.title} />
       ))}
-      <StyleToggleButton blockStyle="blockquote" icon={BlockquoteIcon} />
-      <DecoratorButton decorator="strong" icon={BoldIcon} />
-      <DecoratorButton decorator="em" icon={ItalicIcon} />
-      <DecoratorButton decorator="underline" icon={UnderlineIcon} />
-      <DecoratorButton decorator="strike-through" icon={StrikethroughIcon} />
-      <ListButton listItem="bullet" icon={UlistIcon} />
-      <ListButton listItem="number" icon={OlistIcon} />
-      <LinkButton />
+      {config.decorators.map((d) => (
+        <DecoratorButton key={d.value} decorator={d.value} title={d.title} />
+      ))}
+      {config.lists.map((l) => (
+        <ListButton key={l.value} listItem={l.value} title={l.title} />
+      ))}
+      {config.link ? <LinkButton link={config.link} /> : null}
     </Flex>
   )
 }
 
 interface PortableTextTabEditorProps {
+  /** Which styles/decorators/lists/link to offer — see `defineInternationalizedBlockContent`. */
+  config: ResolvedBlockContentConfig
   value: PortableTextBlock[]
   onChange: (value: PortableTextBlock[]) => void
   placeholder?: string
@@ -304,28 +384,44 @@ interface PortableTextTabEditorProps {
  * synchronisation needed.
  */
 export function PortableTextTabEditor({
+  config,
   value,
   onChange,
   placeholder,
   readOnly = false,
 }: PortableTextTabEditorProps) {
+  const {font} = useTheme_v2()
+  const bodyText = font.text.sizes[2]
+
   return (
-    <EditorProvider initialConfig={{schemaDefinition: ptSchema, initialValue: value, readOnly}}>
+    <EditorProvider
+      initialConfig={{schemaDefinition: getEditorSchema(config), initialValue: value, readOnly}}
+    >
       <NodePlugin nodes={editorNodes} />
+      <ReadOnlySync readOnly={readOnly} />
       {/* Nothing to forward in read-only mode: mounting the forwarder would only
           risk emitting patches against a document that cannot be edited. */}
       {readOnly ? null : <ChangeForwarder onChange={onChange} />}
       <Box style={{border: '1px solid var(--card-border-color)', borderRadius: 4}}>
         {/* A toolbar whose buttons do nothing is worse than no toolbar: it says the
             field is editable when it is not. */}
-        {readOnly ? null : <EditorToolbar />}
+        {readOnly ? null : <EditorToolbar config={config} />}
         <Box padding={2} style={{minHeight: 120}}>
           <PortableTextEditable
-            style={{minHeight: 100, outline: 'none'}}
+            // The Studio's body text (Sanity UI text size 2, like the plain-text
+            // inputs), set once here so paragraphs, list markers and the placeholder
+            // all share one font size and line height and line up with the caret.
+            style={{
+              minHeight: 100,
+              outline: 'none',
+              fontFamily: font.text.family,
+              fontSize: bodyText.fontSize,
+              lineHeight: `${bodyText.lineHeight}px`,
+            }}
             renderPlaceholder={() => (
-              <Text muted size={2}>
-                {placeholder}
-              </Text>
+              // A plain span for the same reason as the list marker: <Text> is a
+              // block with its own metrics and rendered below the caret.
+              <span style={{color: 'var(--card-muted-fg-color)'}}>{placeholder}</span>
             )}
           />
         </Box>

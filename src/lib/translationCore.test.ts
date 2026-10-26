@@ -440,6 +440,59 @@ describe('buildTranslationPatches', () => {
     expect(translated[2].children[1].text).toBe('[EN] sito')
   })
 
+  it('keeps a relative link (string href) and its marks when translating', async () => {
+    const blocks: PortableTextBlock[] = [
+      {
+        _type: 'block',
+        _key: 'b1',
+        style: 'normal',
+        markDefs: [{_key: 'l1', _type: 'link', href: '/contatti'}],
+        children: [
+          {_type: 'span', _key: 's1', marks: [], text: 'Scrivici dalla pagina '},
+          {_type: 'span', _key: 's2', marks: ['l1', 'strong'], text: 'contatti'},
+        ],
+      },
+    ]
+    const doc = {body: [{_key: 'it', _type: 'localeValue', value: blocks}]}
+    const provider = fakeProvider((text) => `[EN] ${text}`)
+
+    const patches = await buildTranslationPatches(doc, 'it', ['en'], provider)
+    const [block] = (patches[0] as {insert: {items: Array<{value: unknown}>}}).insert.items[0]
+      .value as Array<{markDefs: unknown[]; children: Array<{marks: string[]; text: string}>}>
+
+    expect(block.markDefs).toEqual([{_key: 'l1', _type: 'link', href: '/contatti'}])
+    expect(block.children[1].marks).toEqual(['l1', 'strong'])
+    expect(block.children[1].text).toBe('[EN] contatti')
+  })
+
+  it('leaves inline code untranslated', async () => {
+    const blocks: PortableTextBlock[] = [
+      {
+        _type: 'block',
+        _key: 'b1',
+        style: 'normal',
+        markDefs: [],
+        children: [
+          {_type: 'span', _key: 's1', marks: [], text: 'Esegui '},
+          {_type: 'span', _key: 's2', marks: ['code'], text: 'npm install'},
+        ],
+      },
+    ]
+    const doc = {body: [{_key: 'it', _type: 'localeValue', value: blocks}]}
+    const seen: string[] = []
+    const provider = fakeProvider((text) => {
+      seen.push(text)
+      return `[EN] ${text}`
+    })
+
+    const patches = await buildTranslationPatches(doc, 'it', ['en'], provider)
+    const [block] = (patches[0] as {insert: {items: Array<{value: unknown}>}}).insert.items[0]
+      .value as Array<{children: Array<{text: string}>}>
+
+    expect(seen).toEqual(['Esegui'])
+    expect(block.children.map((child) => child.text)).toEqual(['[EN] Esegui ', 'npm install'])
+  })
+
   it('translates a field nested inside an object field, with the right patch path', async () => {
     const doc = {seo: {title: [{_key: 'it', _type: 'localeValue', value: 'Ciao'}]}}
     const provider = fakeProvider((text) => `[EN] ${text}`)

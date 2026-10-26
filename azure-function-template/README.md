@@ -159,6 +159,10 @@ save."
 - **Version pinning**: because the Function imports the plugin, keep the
   `sanity-plugin-i18n` version in `functions/translate-azure/package.json` in step with
   the one your Studio uses. They are separate installs and nothing checks this for you.
+- **Custom rich-text types**: fields made with `defineInternationalizedBlockContent`
+  (plugin 2.1+) are translated like `autoI18n.blockContent`, with no change to the
+  Function. From 2.1, spans marked `code` are left untranslated — that comes from
+  `sanity-plugin-i18n/core`, so it needs the Function's dependency at `^2.1.0` or later.
 - **Batched requests**: spans are collected across the whole field and sent to Azure in
   one request (up to 100 texts per call), rather than one request per span. On a long
   rich-text field this is the difference between a handful of calls and hundreds.
