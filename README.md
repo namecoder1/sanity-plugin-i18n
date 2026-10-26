@@ -392,13 +392,14 @@ discovery or coexistence shows up immediately. Then:
 
 ### Troubleshooting
 
-| Symptom                                                | Cause and fix                                                                                                                  |
-| ------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------ |
-| `MyMemory API error 403: AUTHENTICATION FAILURE`       | Invalid `apiKey`: remove it (keep `email`) or replace it.                                                                      |
-| `Incompatible React versions` when starting the Studio | `react` and `react-dom` installed at different versions, typically after upgrading `sanity`: install both at the same version. |
-| No "Translate missing" action or banner on a document  | No field of a type named `autoI18n.*` in it, or `provider: 'azure'` (no action by design).                                     |
-| A custom rich-text type does not show its toolbar      | The type is not registered in `schema.types`, or the field references it without the `autoI18n.` prefix.                       |
-| Toolbar still shows options you removed                | The Studio is serving an old build: clear `node_modules/.sanity` and restart.                                                  |
+| Symptom                                                                 | Cause and fix                                                                                                                                 |
+| ----------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
+| `MyMemory API error 403: AUTHENTICATION FAILURE`                        | Invalid `apiKey`: remove it (keep `email`) or replace it.                                                                                     |
+| `Incompatible React versions` when starting the Studio                  | `react` and `react-dom` installed at different versions, typically after upgrading `sanity`: install both at the same version.                |
+| No "Translate missing" action or banner on a document                   | No field of a type named `autoI18n.*` in it, or `provider: 'azure'` (no action by design).                                                    |
+| A custom rich-text type does not show its toolbar                       | The type is not registered in `schema.types`, or the field references it without the `autoI18n.` prefix.                                      |
+| Banner reappears on a fully translated rich-text field after publishing | Fixed in 2.1.1 (the source hash depended on JSON key order). Upgrade; fields translated before the fix may need one last "Translate missing". |
+| Toolbar still shows options you removed                                 | The Studio is serving an old build: clear `node_modules/.sanity` and restart.                                                                 |
 
 ## Advanced: building a custom translation provider
 

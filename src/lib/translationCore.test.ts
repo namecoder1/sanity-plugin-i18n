@@ -41,6 +41,66 @@ describe('hashSourceValue', () => {
   })
 })
 
+describe('source hash and key order', () => {
+  // The same block twice: as the Studio editor builds it (`_type` first) and as the
+  // Content Lake returns it after a publish or a reload (keys in alphabetical order).
+  const asEditor = [
+    {
+      _type: 'block',
+      _key: 'b1',
+      style: 'normal',
+      markDefs: [{_type: 'link', _key: 'l1', href: '/contatti'}],
+      children: [{_type: 'span', _key: 's1', text: 'Ciao', marks: ['l1']}],
+    },
+  ] as unknown as PortableTextBlock[]
+  const asContentLake = [
+    {
+      _key: 'b1',
+      _type: 'block',
+      children: [{_key: 's1', _type: 'span', marks: ['l1'], text: 'Ciao'}],
+      markDefs: [{_key: 'l1', _type: 'link', href: '/contatti'}],
+      style: 'normal',
+    },
+  ] as unknown as PortableTextBlock[]
+
+  it('does not depend on the order of object keys', () => {
+    expect(hashSourceValue(asEditor)).toBe(hashSourceValue(asContentLake))
+  })
+
+  it('still detects a real change', () => {
+    const edited = JSON.parse(JSON.stringify(asContentLake))
+    edited[0].children[0].text = 'Salve'
+    expect(hashSourceValue(edited)).not.toBe(hashSourceValue(asContentLake))
+  })
+
+  it('does not flag a translation made on the draft once the document is published', () => {
+    // Translated in the Studio, from the draft held in memory…
+    const sourceHash = hashSourceValue(asEditor)
+    // …then published: the same content comes back with its keys reordered.
+    const published = {
+      body: [
+        {_key: 'it', _type: 'localeValue', value: asContentLake},
+        {_key: 'en', _type: 'localeValue', value: asContentLake, sourceHash},
+      ],
+    }
+    expect(findPendingTranslations(published, 'it', ['en'])).toEqual([])
+  })
+
+  it('accepts a sourceHash written before 2.1.1 from the same key order', () => {
+    // 2.1.0 and earlier hashed JSON.stringify as is.
+    let legacy = 0
+    const text = JSON.stringify(asEditor)
+    for (let i = 0; i < text.length; i++) legacy = (legacy * 31 + text.charCodeAt(i)) | 0
+    const doc = {
+      body: [
+        {_key: 'it', _type: 'localeValue', value: asEditor},
+        {_key: 'en', _type: 'localeValue', value: asEditor, sourceHash: legacy.toString(36)},
+      ],
+    }
+    expect(findPendingTranslations(doc, 'it', ['en'])).toEqual([])
+  })
+})
+
 describe('findInternationalizedFieldPaths', () => {
   it('finds only arrays containing localeValue items, at the top level', () => {
     const titleValues = [{_key: 'it', _type: 'localeValue', value: 'Ciao'}]
