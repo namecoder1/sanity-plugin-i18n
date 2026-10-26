@@ -52,8 +52,8 @@ function splitOuterWhitespace(text: string): {leading: string; core: string; tra
 /**
  * Translates an array of Portable Text blocks while preserving their structure:
  * each span is translated on its own and keeps its `marks` (bold, italic) on the
- * translated text. Non-text blocks (images, custom objects) and empty spans are
- * copied through untouched.
+ * translated text. Non-text blocks (images, custom objects), empty spans and inline
+ * code (spans marked `code`) are copied through untouched.
  *
  * Works in two passes — collect every translatable span across the whole array,
  * translate them, then put the results back. The collect-first shape is what makes
@@ -84,6 +84,9 @@ async function translateBlocks(
       const child = rawChild as Record<string, unknown>
       const text = child.text
       if (child._type !== 'span' || typeof text !== 'string' || !text.trim()) return
+      // Inline code is left as written: translating `npm install` or a variable
+      // name breaks it.
+      if (Array.isArray(child.marks) && child.marks.includes('code')) return
       const {leading, core, trailing} = splitOuterWhitespace(text)
       slots.push({block: blockIndex, child: childIndex, leading, trailing})
       texts.push(core)

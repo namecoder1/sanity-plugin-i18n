@@ -21,9 +21,19 @@ import {
   type ArrayOfObjectsInputProps,
 } from 'sanity'
 
+import {
+  BLOCK_CONTENT_TYPE_CONFIG,
+  getBlockContentConfig,
+  resolveBlockContentConfig,
+} from '../lib/blockContentConfig'
 import {groupByLanguage} from '../lib/localeMarkers'
 import {useLanguageSettings} from '../lib/useLanguageSettings'
 import {PortableTextTabEditor} from './PortableTextTabEditor'
+
+// Fallback for an `autoI18n.blockContent` schema type that somehow reaches the input
+// without its options (a field overriding `options` whose parent chain is not
+// exposed). Resolved once, so the editor's per-configuration cache keeps working.
+const blockContentFallbackConfig = resolveBlockContentConfig(BLOCK_CONTENT_TYPE_CONFIG)
 
 interface LocaleValue {
   _key: string
@@ -34,7 +44,8 @@ interface LocaleValue {
 
 /**
  * Custom input for the 'autoI18n.string' / 'autoI18n.text' / 'autoI18n.blockContent'
- * fields. Renders one tab per language configured in autoI18n.languageSettings and
+ * fields, and for rich-text types made with defineInternationalizedBlockContent.
+ * Renders one tab per language configured in autoI18n.languageSettings and
  * guarantees that every item's _key is the right language code.
  */
 export function InternationalizedInput(props: ArrayOfObjectsInputProps<LocaleValue>) {
@@ -150,9 +161,13 @@ export function InternationalizedInput(props: ArrayOfObjectsInputProps<LocaleVal
     )
   }
 
-  // Works out which underlying field variant this is from the name of the schema
-  // type produced by createInternationalizedFieldType / internationalizedBlockContentType.
-  const isBlockContent = schemaType.name.endsWith('.blockContent')
+  // Rich-text types carry their configuration in `options` (see
+  // defineInternationalizedBlockContent); the plain variants are told apart by the
+  // name createInternationalizedFieldType gives them.
+  const blockContentConfig =
+    getBlockContentConfig(schemaType) ??
+    (schemaType.name.endsWith('.blockContent') ? blockContentFallbackConfig : undefined)
+  const isBlockContent = blockContentConfig !== undefined
   const isMultiline = schemaType.name.endsWith('.text')
 
   const hasValueFor = (langCode: string): boolean => {
@@ -210,8 +225,9 @@ export function InternationalizedInput(props: ArrayOfObjectsInputProps<LocaleVal
                 </Flex>
               ) : null}
 
-              {isBlockContent ? (
+              {blockContentConfig ? (
                 <PortableTextTabEditor
+                  config={blockContentConfig}
                   key={`${lang.code}:${getSourceHashFor(lang.code) ?? ''}`}
                   value={getBlocksValueFor(lang.code)}
                   onChange={(blocks) => handleChangeFor(lang.code, blocks)}
