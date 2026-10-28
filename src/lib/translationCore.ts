@@ -10,8 +10,22 @@ import type {
 
 export type {LanguageEntry, LocaleValue, PortableTextBlockLike, QueryableClient}
 
+/**
+ * Whether a locale value holds anything worth keeping or translating. Rich text made
+ * only of text blocks without text (what the editor leaves behind when its content is
+ * deleted) counts as empty, like an empty string. Any non-text node counts as content.
+ */
 export function hasContent(value: string | PortableTextBlockLike[] | undefined): boolean {
-  return Array.isArray(value) ? value.length > 0 : Boolean(value)
+  return Array.isArray(value) ? value.some(blockHasContent) : Boolean(value)
+}
+
+function blockHasContent(block: PortableTextBlockLike): boolean {
+  if (!block || block._type !== 'block') return true
+  return (block.children ?? []).some((child) => {
+    if (!child || typeof child !== 'object') return false
+    const {_type, text} = child as {_type?: string; text?: unknown}
+    return _type !== 'span' || (typeof text === 'string' && text.length > 0)
+  })
 }
 
 function hashText(text: string): string {

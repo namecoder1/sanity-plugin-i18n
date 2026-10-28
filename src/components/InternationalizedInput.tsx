@@ -18,6 +18,7 @@ import {
   insert,
   set,
   setIfMissing,
+  unset,
   type ArrayOfObjectsInputProps,
 } from 'sanity'
 
@@ -27,6 +28,7 @@ import {
   resolveBlockContentConfig,
 } from '../lib/blockContentConfig'
 import {groupByLanguage} from '../lib/localeMarkers'
+import {hasContent} from '../lib/translationCore'
 import {useLanguageSettings} from '../lib/useLanguageSettings'
 import {PortableTextTabEditor} from './PortableTextTabEditor'
 
@@ -114,6 +116,18 @@ export function InternationalizedInput(props: ArrayOfObjectsInputProps<LocaleVal
   const handleChangeFor = useCallback(
     (langCode: string, nextValue: string | PortableTextBlock[]) => {
       if (readOnly) return
+      // Emptying a language removes its item instead of storing "" (or a paragraph
+      // with no text). An empty item still has a `_key`, so queries that look for
+      // translated languages would count it, and a stale `sourceHash` would stay
+      // attached to nothing. An empty value for a language that has no item yet (the
+      // rich-text editor can emit one when the tab opens) is not written at all.
+      if (!hasContent(nextValue)) {
+        if (knownKeysRef.current.has(langCode)) {
+          knownKeysRef.current.delete(langCode)
+          onChange(unset([{_key: langCode}]))
+        }
+        return
+      }
       // Targeted patches on the single item instead of rebuilding and rewriting the
       // whole array — see the knownKeysRef comment above for why "does it exist
       // already?" is answered by the ref rather than by the `value` prop.

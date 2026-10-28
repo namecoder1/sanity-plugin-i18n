@@ -70,6 +70,11 @@ instead of a single value — one tab per language in the Studio editor, handled
 by the plugin. `autoI18n.stringList` nests that same shape inside every list item, so tags
 (or any short repeated string) can each carry their own translations independently.
 
+An entry exists only while its language has content: deleting a language's text removes its
+entry instead of storing `""` (or a paragraph with no text), so an entry can be read as "this
+language is translated". Data written before 2.1.2 may still hold empty entries; when you
+query, treat an empty `value` as missing (e.g. `field[_key == $lang && length(value) > 0]`).
+
 ### Rich text support
 
 `autoI18n.blockContent` supports paragraphs, headings (H1-H4), quotes, bulleted/numbered

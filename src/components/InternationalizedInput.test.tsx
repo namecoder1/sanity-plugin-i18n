@@ -2,6 +2,7 @@
 import {ThemeProvider, studioTheme} from '@sanity/ui'
 import {fireEvent, render, screen} from '@testing-library/react'
 import type {ReactElement} from 'react'
+import {unset} from 'sanity'
 import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest'
 
 const languages = [
@@ -36,6 +37,7 @@ const {defineInternationalizedBlockContent, internationalizedBlockContentType} =
 
 function renderInput(overrides: Record<string, unknown> = {}): {
   onChange: ReturnType<typeof vi.fn>
+  setValue: (value: unknown[]) => void
 } {
   const onChange = vi.fn()
   const props = {
@@ -47,12 +49,19 @@ function renderInput(overrides: Record<string, unknown> = {}): {
     presence: [],
     ...overrides,
   }
-  render(
+  const {rerender} = render(
     <ThemeProvider theme={studioTheme}>
       {(<InternationalizedInput {...(props as any)} />) as ReactElement}
     </ThemeProvider>,
   )
-  return {onChange}
+  // Hands the input a new `value`, as the form does after applying a patch.
+  const setValue = (value: unknown[]) =>
+    rerender(
+      <ThemeProvider theme={studioTheme}>
+        {(<InternationalizedInput {...(props as any)} value={value} />) as ReactElement}
+      </ThemeProvider>,
+    )
+  return {onChange, setValue}
 }
 
 beforeEach(() => vi.clearAllMocks())
@@ -115,6 +124,26 @@ describe('InternationalizedInput', () => {
       ],
     })
     expect(screen.getByTestId('presence').textContent).toBe('1')
+  })
+
+  it('removes the language item when its text is deleted, instead of storing ""', () => {
+    const {onChange} = renderInput()
+    fireEvent.change(screen.getByDisplayValue('Hello'), {target: {value: ''}})
+    expect(onChange).toHaveBeenCalledTimes(1)
+    expect(onChange).toHaveBeenCalledWith(unset([{_key: 'en'}]))
+  })
+
+  it('inserts the item again when text is typed after it was deleted', () => {
+    const {onChange, setValue} = renderInput({value: []})
+    const item = (value: string) => [{_key: 'en', _type: 'localeValue', value}]
+    fireEvent.change(screen.getByRole('textbox'), {target: {value: 'Hi'}})
+    setValue(item('Hi'))
+    fireEvent.change(screen.getByRole('textbox'), {target: {value: ''}})
+    setValue([])
+    fireEvent.change(screen.getByRole('textbox'), {target: {value: 'Hello'}})
+    expect(
+      onChange.mock.calls.map(([patch]) => (Array.isArray(patch) ? patch[1].type : patch.type)),
+    ).toEqual(['insert', 'unset', 'insert'])
   })
 
   it('reports "no language configured" instead of an empty tab bar', async () => {
