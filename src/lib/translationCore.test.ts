@@ -17,9 +17,25 @@ describe('hasContent', () => {
     expect(hasContent([])).toBe(false)
   })
 
-  it('is true for non-empty string and non-empty array', () => {
+  it('is true for a non-empty string and for rich text with text in it', () => {
     expect(hasContent('ciao')).toBe(true)
-    expect(hasContent([{_type: 'block'}])).toBe(true)
+    expect(hasContent([{_type: 'block', children: [{_type: 'span', text: 'ciao'}]}])).toBe(true)
+  })
+
+  it('is false for rich text whose blocks have no text (what deleting the content leaves)', () => {
+    expect(hasContent([{_type: 'block'}])).toBe(false)
+    expect(hasContent([{_type: 'block', children: [{_type: 'span', text: ''}]}])).toBe(false)
+    expect(
+      hasContent([
+        {_type: 'block', children: [{_type: 'span', text: ''}]},
+        {_type: 'block', children: []},
+      ]),
+    ).toBe(false)
+  })
+
+  it('counts any non-text node as content', () => {
+    expect(hasContent([{_type: 'image'}])).toBe(true)
+    expect(hasContent([{_type: 'block', children: [{_type: 'inlineObject'}]}])).toBe(true)
   })
 })
 
