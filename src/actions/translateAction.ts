@@ -1,10 +1,11 @@
 import {TranslateIcon} from '@sanity/icons/Translate'
 import {useToast} from '@sanity/ui/toast'
 import {useState} from 'react'
-import {useClient, useDocumentOperation} from 'sanity'
+import {useClient, useDocumentOperation, useTranslation} from 'sanity'
 import type {DocumentActionComponent, DocumentActionProps} from 'sanity'
 
 import type {AutoI18nConfig} from '../config'
+import {I18N_NAMESPACE} from '../i18n'
 import {createMyMemoryProvider} from '../lib/providers/mymemory'
 import {buildTranslationPatches, fetchLanguageSettings} from '../lib/translationCore'
 
@@ -26,6 +27,7 @@ export function createTranslateAction(config: AutoI18nConfig): DocumentActionCom
     const [isTranslating, setIsTranslating] = useState(false)
     const [progress, setProgress] = useState<{done: number; total: number} | null>(null)
     const toast = useToast()
+    const {t} = useTranslation(I18N_NAMESPACE)
 
     // Explicit cast: draft/published are typed as a generic SanityDocument, but here
     // we know our custom fields are arrays of LocaleValue.
@@ -34,9 +36,9 @@ export function createTranslateAction(config: AutoI18nConfig): DocumentActionCom
     return {
       label: isTranslating
         ? progress
-          ? `Translating ${progress.done}/${progress.total}...`
-          : 'Translating...'
-        : 'Translate missing',
+          ? t('translate.progress', progress)
+          : t('translate.in-progress')
+        : t('action.translate'),
       icon: TranslateIcon,
       disabled: isTranslating || !doc,
       onHandle: async () => {
@@ -52,7 +54,7 @@ export function createTranslateAction(config: AutoI18nConfig): DocumentActionCom
         try {
           const {sourceLang, targetLangs} = await fetchLanguageSettings(client, config)
           if (targetLangs.length === 0) {
-            throw new Error('No target language configured in autoI18n.languageSettings')
+            throw new Error(t('translate.no-target-language'))
           }
 
           await buildTranslationPatches(doc, sourceLang, targetLangs, provider, {
@@ -69,11 +71,7 @@ export function createTranslateAction(config: AutoI18nConfig): DocumentActionCom
           toast.push({
             status: applied > 0 ? 'success' : 'info',
             title:
-              applied === 0
-                ? 'Everything is already translated'
-                : applied === 1
-                  ? 'Translated 1 field'
-                  : `Translated ${applied} field/language pairs`,
+              applied === 0 ? t('translate.done-nothing') : t('translate.done', {count: applied}),
           })
           props.onComplete()
         } catch (err) {
@@ -83,10 +81,10 @@ export function createTranslateAction(config: AutoI18nConfig): DocumentActionCom
             applied > 0
               ? {
                   status: 'warning',
-                  title: `Stopped after ${applied} of ${total || '?'} translations`,
-                  description: `${description} — what was already translated has been kept.`,
+                  title: t('translate.stopped', {applied, total: total || '?'}),
+                  description: t('translate.stopped-description', {error: description}),
                 }
-              : {status: 'error', title: 'Translation failed', description},
+              : {status: 'error', title: t('translate.failed'), description},
           )
         } finally {
           setIsTranslating(false)

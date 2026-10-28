@@ -4,8 +4,9 @@ import {definePlugin} from 'sanity'
 import {createTranslateAction} from './actions/translateAction'
 import {LanguageSettingsTool} from './components/LanguageSettingsTool'
 import {createTranslationBanner} from './components/TranslationBanner'
-import {languageSettingsType} from './config'
-import type {AutoI18nConfig} from './config'
+import {createLanguageSettingsType, languageSettingsType, resolveLabels} from './config'
+import type {AutoI18nConfig, AutoI18nLabels} from './config'
+import {pluginLocaleBundles} from './i18n'
 import {documentTypeHasI18nFields} from './lib/schemaHasI18nFields'
 import {
   internationalizedStringType,
@@ -14,7 +15,11 @@ import {
   internationalizedStringListType,
 } from './schemaTypes/internationalizedField'
 
-export type {AutoI18nConfig}
+export type {AutoI18nConfig, AutoI18nLabels}
+
+// Namespace of the interface strings, for Studios that override a string or add a
+// locale through `i18n.bundles` — see the README, "Interface language".
+export {I18N_NAMESPACE} from './i18n'
 
 // Custom rich-text types with a chosen subset of styles/decorators/lists/link. Studio
 // only (the returned type renders the plugin's input), so not part of `./core`.
@@ -84,12 +89,15 @@ export {languageSettingsListItem, excludeLanguageSettingsType} from './structure
  */
 export const autoI18nPlugin = definePlugin<AutoI18nConfig | void>((config = {}) => {
   const resolvedConfig: AutoI18nConfig = config || {}
+  const labels = resolveLabels(resolvedConfig.labels)
 
   return {
     name: 'sanity-plugin-i18n',
+    // Interface strings, following the Studio's locale (English and Italian built in).
+    i18n: {bundles: pluginLocaleBundles},
     schema: {
       types: [
-        languageSettingsType,
+        createLanguageSettingsType(labels),
         internationalizedStringType,
         internationalizedTextType,
         internationalizedBlockContentType,
@@ -142,7 +150,7 @@ export const autoI18nPlugin = definePlugin<AutoI18nConfig | void>((config = {}) 
         ...prev,
         {
           name: 'auto-i18n-language-settings',
-          title: 'Language Settings',
+          title: labels.languageSettingsTitle,
           icon: EarthGlobeIcon,
           component: LanguageSettingsTool,
         },

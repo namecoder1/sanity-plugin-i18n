@@ -255,6 +255,98 @@ export default defineConfig({
 
 `languageSettingsListItem(S)` builds the sidebar entry; `excludeLanguageSettingsType(...)`
 removes the type from the generic per-type list so it doesn't appear twice.
+`languageSettingsListItem(S, {title})` changes the entry's title (see "Interface language").
+
+## Interface language
+
+The plugin's interface follows the **Studio's language**. English (`en-US`) and Italian
+(`it-IT`) are built in: install Sanity's Italian locale and the plugin is in Italian too,
+with no configuration.
+
+```ts
+import {itITLocale} from '@sanity/locale-it-it'
+
+export default defineConfig({
+  // ...
+  plugins: [itITLocale(), autoI18nPlugin({...})],
+})
+```
+
+That covers the language tabs ("(source)", placeholders), the loading and empty states,
+the "Translate missing" action and its toasts, the banner, the rich-text toolbar's
+tooltips and link prompt, and the navbar tool's loading screen. Bundles load lazily: a
+Studio only fetches the locale it uses.
+
+Rich-text tooltips you set yourself with `defineInternationalizedBlockContent` (`title`
+on a style, decorator, list or link) are shown as written; only the built-in defaults
+are translated.
+
+### Overriding a string or adding a language
+
+The strings live in the `sanity-plugin-i18n` i18next namespace (exported as
+`I18N_NAMESPACE`), so Sanity's standard mechanism applies: add a bundle under `i18n.bundles`
+in your Studio config. A bundle for a locale the plugin already ships overrides only the
+keys it lists; a bundle for a new locale adds it (anything missing falls back to English).
+The keys, with their English text, are in
+[`src/locales/en-US.ts`](src/locales/en-US.ts).
+
+```ts
+import {defineConfig, defineLocaleResourceBundle} from 'sanity'
+import {I18N_NAMESPACE} from 'sanity-plugin-i18n'
+
+export default defineConfig({
+  // ...
+  i18n: {
+    bundles: [
+      // Override: change one Italian string.
+      defineLocaleResourceBundle({
+        locale: 'it-IT',
+        namespace: I18N_NAMESPACE, // 'sanity-plugin-i18n'
+        resources: {'action.translate': 'Traduci'},
+      }),
+      // New language (alongside the Studio's own locale for it, e.g. @sanity/locale-de-de).
+      defineLocaleResourceBundle({
+        locale: 'de-DE',
+        namespace: I18N_NAMESPACE,
+        resources: () => import('./locales/sanity-plugin-i18n.de-DE'),
+      }),
+    ],
+  },
+})
+```
+
+Plurals use i18next's suffixes (`banner.pending_one` / `banner.pending_other`, chosen by
+`{{count}}`).
+
+### Texts the Studio's locale cannot reach
+
+Sanity translates components, not schema titles. The "Language Settings" document type
+(its title, field titles, preview and validation messages) and the navbar tool's title
+therefore stay in English unless you set them through the plugin's `labels` option:
+
+```ts
+autoI18nPlugin({
+  labels: {
+    languageSettingsTitle: 'Lingue', // document type, navbar tool, preview
+    supportedLanguagesTitle: 'Lingue disponibili',
+    languageCodeTitle: 'Codice lingua (es. it, en, fr)',
+    languageLabelTitle: 'Nome visualizzato',
+    defaultSourceLanguageTitle: 'Lingua di partenza',
+    noLanguagesSubtitle: 'Nessuna lingua configurata',
+    languageCountOne: '1 lingua',
+    languageCountOther: '{{count}} lingue',
+    sourceMarker: '(origine)',
+    duplicateCodeError: 'Codice lingua ripetuto: {{codes}}. Ogni lingua deve comparire una volta.',
+    multipleDefaultsError:
+      'Solo una lingua può essere quella di partenza ({{codes}} sono tutte selezionate).',
+    noDefaultWarning:
+      "Nessuna lingua di partenza selezionata: verrà usata `defaultSourceLanguage` della configurazione del plugin, o l'inglese.",
+  },
+})
+```
+
+Every key is optional; anything left out keeps its English default. The sidebar entry from
+`languageSettingsListItem` takes its own title: `languageSettingsListItem(S, {title: 'Lingue'})`.
 
 ## Translation engine: MyMemory (default) or Azure Translator
 
@@ -527,10 +619,6 @@ Function.
   a separate field. The same holds for types made with `defineInternationalizedBlockContent`:
   they choose among the built-in styles/decorators/lists/link, they cannot add custom
   annotations or objects.
-- **The plugin's own interface is in English**: toolbar tooltips follow the `title`s you
-  pass to `defineInternationalizedBlockContent`, but placeholders ("Text in …"), the
-  "(source)" tab marker, "Translate missing" and "Language Settings" are not translatable
-  yet.
 - **Links in the editor are created via a browser prompt** (`window.prompt`), not a real
   dialog — simple but unpolished: a link rejected by `validate` is reported with
   `window.alert`, and editing an existing link means removing and re-creating it rather

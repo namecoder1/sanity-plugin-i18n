@@ -1,7 +1,7 @@
 import {EarthGlobeIcon} from '@sanity/icons/EarthGlobe'
 import type {StructureBuilder} from 'sanity/structure'
 
-import {LANGUAGE_SETTINGS_DOC_ID} from './config'
+import {DEFAULT_LABELS, LANGUAGE_SETTINGS_DOC_ID} from './config'
 
 /**
  * A ready-made sidebar entry for the "Language Settings" singleton. It jumps
@@ -30,12 +30,16 @@ import {LANGUAGE_SETTINGS_DOC_ID} from './config'
  *   plugins: [structureTool({structure}), autoI18nPlugin({...})],
  * })
  * ```
+ *
+ * The title is a structure title, which the Studio's locale does not translate: pass
+ * `{title}` to change it (e.g. the same text as the plugin's
+ * `labels.languageSettingsTitle`).
  */
-export function languageSettingsListItem(S: StructureBuilder) {
+export function languageSettingsListItem(S: StructureBuilder, options: {title?: string} = {}) {
   return (
     S.listItem()
       .id(LANGUAGE_SETTINGS_DOC_ID)
-      .title('Language Settings')
+      .title(options.title || DEFAULT_LABELS.languageSettingsTitle)
       .icon(EarthGlobeIcon)
       // Needed here too, not only inside .child() below: when Sanity resolves the
       // pane from the URL rather than from the tree it just built, it takes the type

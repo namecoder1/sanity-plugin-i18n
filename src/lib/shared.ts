@@ -10,6 +10,33 @@
  * type and therefore pulls in `sanity` and `@sanity/icons` at runtime.
  */
 
+/**
+ * i18next namespace of the plugin's interface strings. Use it to override a string
+ * or add a locale from a Studio config:
+ *
+ * ```ts
+ * defineConfig({
+ *   // ...
+ *   i18n: {
+ *     bundles: [
+ *       defineLocaleResourceBundle({
+ *         locale: 'it-IT',
+ *         namespace: I18N_NAMESPACE, // 'sanity-plugin-i18n'
+ *         resources: {'action.translate': 'Traduci'},
+ *       }),
+ *     ],
+ *   },
+ * })
+ * ```
+ *
+ * Defined here rather than in `i18n.ts`, which imports `sanity`: the test stand-in
+ * for `useTranslation` reads it from inside a mock of `sanity`, and importing the
+ * module being mocked from there deadlocks.
+ *
+ * @public
+ */
+export const I18N_NAMESPACE = 'sanity-plugin-i18n'
+
 /** Fixed ID of the singleton settings document, used for direct fetches and patches. */
 export const LANGUAGE_SETTINGS_DOC_ID = 'autoI18n.languageSettings'
 
@@ -100,4 +127,45 @@ export interface AutoI18nConfig {
   email?: string
   /** Source language to fall back on when no configured language is marked as default. */
   defaultSourceLanguage?: string
+  /**
+   * Overrides for the texts the Studio's locale cannot reach: the "Language
+   * Settings" schema type (titles, preview, validation messages) and the navbar
+   * tool. Sanity translates components, not schema titles, so these stay in English
+   * unless set here. Every other string of the plugin follows the Studio's language
+   * (see `I18N_NAMESPACE`).
+   */
+  labels?: Partial<AutoI18nLabels>
+}
+
+/**
+ * Texts of the "Language Settings" singleton and its navbar tool. `{{count}}` and
+ * `{{codes}}` are replaced by the plugin.
+ *
+ * @public
+ */
+export interface AutoI18nLabels {
+  /** Title of the document type, of the navbar tool and of its preview. Default: "Language Settings". */
+  languageSettingsTitle: string
+  /** Default: "Supported languages". */
+  supportedLanguagesTitle: string
+  /** Default: "Language code (e.g. en, fr, de)". */
+  languageCodeTitle: string
+  /** Default: "Display label". */
+  languageLabelTitle: string
+  /** Default: "Default source language". */
+  defaultSourceLanguageTitle: string
+  /** Preview subtitle with an empty list. Default: "No language configured". */
+  noLanguagesSubtitle: string
+  /** Preview subtitle, singular. Default: "1 language". */
+  languageCountOne: string
+  /** Preview subtitle, plural. Default: `{{count}} languages`. */
+  languageCountOther: string
+  /** Marks the default language in the preview subtitle. Default: "(source)". */
+  sourceMarker: string
+  /** Validation error. Default: `Duplicate language code: {{codes}}. Each language must appear once.` */
+  duplicateCodeError: string
+  /** Validation error. Default: `Only one language can be the default source ({{codes}} are all marked). …` */
+  multipleDefaultsError: string
+  /** Validation warning. Default: "No default source language selected — translation will fall back to …" */
+  noDefaultWarning: string
 }

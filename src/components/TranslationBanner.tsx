@@ -2,10 +2,11 @@ import {TranslateIcon} from '@sanity/icons/Translate'
 import {Card, Flex, Text, Button} from '@sanity/ui'
 import {useToast} from '@sanity/ui/toast'
 import {useMemo, useState} from 'react'
-import {useDocumentOperation, useEditState} from 'sanity'
+import {useDocumentOperation, useEditState, useTranslation} from 'sanity'
 import type {DocumentLayoutProps} from 'sanity'
 
 import type {AutoI18nConfig} from '../config'
+import {I18N_NAMESPACE} from '../i18n'
 import {createMyMemoryProvider} from '../lib/providers/mymemory'
 import {
   buildTranslationPatches,
@@ -44,6 +45,7 @@ export function createTranslationBanner(config: AutoI18nConfig) {
     const {draft, published} = useEditState(documentId, documentType)
     const {languages} = useLanguageSettings()
     const toast = useToast()
+    const {t} = useTranslation(I18N_NAMESPACE)
 
     const [isTranslating, setIsTranslating] = useState(false)
     const [progress, setProgress] = useState<{done: number; total: number} | null>(null)
@@ -88,7 +90,7 @@ export function createTranslationBanner(config: AutoI18nConfig) {
       try {
         const {sourceLang, targetLangs} = resolveLanguages(languages, config)
         if (targetLangs.length === 0) {
-          throw new Error('No target language configured in autoI18n.languageSettings')
+          throw new Error(t('translate.no-target-language'))
         }
 
         await buildTranslationPatches(doc, sourceLang, targetLangs, provider, {
@@ -99,11 +101,7 @@ export function createTranslationBanner(config: AutoI18nConfig) {
           onProgress: (done, total) => setProgress({done, total}),
         })
 
-        toast.push({
-          status: 'success',
-          title:
-            applied === 1 ? 'Translated 1 field' : `Translated ${applied} field/language pairs`,
-        })
+        toast.push({status: 'success', title: t('translate.done', {count: applied})})
       } catch (err) {
         console.error('[auto-i18n] Translation failed:', err)
         const description = err instanceof Error ? err.message : String(err)
@@ -111,10 +109,10 @@ export function createTranslationBanner(config: AutoI18nConfig) {
           applied > 0
             ? {
                 status: 'warning',
-                title: `Stopped after ${applied} of ${progress?.total ?? '?'} translations`,
-                description: `${description} — what was already translated has been kept.`,
+                title: t('translate.stopped', {applied, total: progress?.total ?? '?'}),
+                description: t('translate.stopped-description', {error: description}),
               }
-            : {status: 'error', title: 'Translation failed', description},
+            : {status: 'error', title: t('translate.failed'), description},
         )
       } finally {
         setIsTranslating(false)
@@ -139,10 +137,8 @@ export function createTranslationBanner(config: AutoI18nConfig) {
             <Card tone="caution" padding={2} borderBottom>
               <Flex align="center" justify="space-between" gap={3} paddingX={2}>
                 <Text size={1}>
-                  {pendingCount === 1
-                    ? '1 translation missing or out of date.'
-                    : `${pendingCount} translations missing or out of date.`}
-                  {isAzure ? ' They will be translated automatically on save.' : ''}
+                  {t('banner.pending', {count: pendingCount})}
+                  {isAzure ? ` ${t('banner.automatic', {count: pendingCount})}` : ''}
                 </Text>
                 {isAzure ? null : (
                   <Button
@@ -150,9 +146,9 @@ export function createTranslationBanner(config: AutoI18nConfig) {
                     text={
                       isTranslating
                         ? progress
-                          ? `Translating ${progress.done}/${progress.total}...`
-                          : 'Translating...'
-                        : 'Translate now'
+                          ? t('translate.progress', progress)
+                          : t('translate.in-progress')
+                        : t('banner.translate-now')
                     }
                     tone="primary"
                     mode="ghost"

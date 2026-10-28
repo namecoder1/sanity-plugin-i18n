@@ -24,11 +24,18 @@ import {UnderlineIcon} from '@sanity/icons/Underline'
 import {Box, Button, Flex, useTheme_v2} from '@sanity/ui'
 import {useEffect} from 'react'
 import type {ComponentType} from 'react'
+import {useTranslation} from 'sanity'
 
+import {I18N_NAMESPACE} from '../i18n'
 import {
+  DECORATOR_TITLES,
+  LINK_TITLE,
+  LIST_TITLES,
+  STYLE_TITLES,
   validateHref,
   type BlockContentDecorator,
   type BlockContentList,
+  type BlockContentStyle,
   type ResolvedBlockContentConfig,
 } from '../lib/blockContentConfig'
 import {computeListNumbers} from '../lib/listNumbers'
@@ -228,8 +235,29 @@ const LIST_ICONS: Record<BlockContentList, ComponentType> = {
   number: OlistIcon,
 }
 
-function DecoratorButton({decorator, title}: {decorator: BlockContentDecorator; title: string}) {
+/**
+ * A button's tooltip. The resolved configuration always carries a title, filled in
+ * with an English default when the schema set none; that default is swapped for the
+ * Studio-locale string, while a title the schema did set is shown as written.
+ */
+function useButtonTitle(key: string, title: string, defaultTitle: string | undefined): string {
+  const {t} = useTranslation(I18N_NAMESPACE)
+  return title === defaultTitle ? t(key) : title
+}
+
+function DecoratorButton({
+  decorator,
+  title: configuredTitle,
+}: {
+  decorator: BlockContentDecorator
+  title: string
+}) {
   const editor = useEditor()
+  const title = useButtonTitle(
+    `toolbar.decorator.${decorator}`,
+    configuredTitle,
+    DECORATOR_TITLES[decorator],
+  )
   const active = useEditorSelector(editor, (snapshot) =>
     Boolean(snapshot.decoratorState[decorator]),
   )
@@ -252,8 +280,15 @@ function DecoratorButton({decorator, title}: {decorator: BlockContentDecorator; 
   )
 }
 
-function ListButton({listItem, title}: {listItem: BlockContentList; title: string}) {
+function ListButton({
+  listItem,
+  title: configuredTitle,
+}: {
+  listItem: BlockContentList
+  title: string
+}) {
   const editor = useEditor()
+  const title = useButtonTitle(`toolbar.list.${listItem}`, configuredTitle, LIST_TITLES[listItem])
   const active = useEditorSelector(editor, isActiveListItem(listItem))
 
   return (
@@ -278,8 +313,19 @@ function ListButton({listItem, title}: {listItem: BlockContentList; title: strin
 //
 // The button shows a short label (¶, H2, …, or the quote icon) and puts the
 // configured title — which may be long, "Sottotitolo" — in the tooltip.
-function StyleToggleButton({blockStyle, title}: {blockStyle: string; title: string}) {
+function StyleToggleButton({
+  blockStyle,
+  title: configuredTitle,
+}: {
+  blockStyle: string
+  title: string
+}) {
   const editor = useEditor()
+  const title = useButtonTitle(
+    `toolbar.style.${blockStyle}`,
+    configuredTitle,
+    STYLE_TITLES[blockStyle as BlockContentStyle],
+  )
   const active = useEditorSelector(editor, isActiveStyle(blockStyle))
 
   return (
@@ -309,12 +355,14 @@ function StyleToggleButton({blockStyle, title}: {blockStyle: string; title: stri
 function LinkButton({link}: {link: Exclude<ResolvedBlockContentConfig['link'], false>}) {
   const editor = useEditor()
   const active = useEditorSelector(editor, isActiveAnnotation('link'))
+  const {t} = useTranslation(I18N_NAMESPACE)
+  const title = useButtonTitle('toolbar.link.title', link.title, LINK_TITLE)
 
   return (
     <Button
       icon={LinkIcon}
-      title={link.title}
-      aria-label={link.title}
+      title={title}
+      aria-label={title}
       mode={active ? 'default' : 'bleed'}
       tone={active ? 'primary' : 'default'}
       padding={2}
@@ -329,11 +377,16 @@ function LinkButton({link}: {link: Exclude<ResolvedBlockContentConfig['link'], f
         // Minimal toolbar, and the plugin has no dialog system: a native prompt is
         // the simplest workable compromise here. See "Known limitations" in the
         // README — this is the one piece of UI that is knowingly unpolished.
-        const href = window.prompt(`${link.title} URL:`)
+        const href = window.prompt(t('toolbar.link.prompt', {title}))
         if (!href) return
         // Same check the Sanity schema runs on save, done up front: a link the
         // schema would reject is not applied at all, rather than applied and then
-        // flagged as a validation error the user has to go and find.
+        // flagged as a validation error the user has to go and find. The "required"
+        // message is the schema's English one, so the editor shows its own.
+        if (!href.trim()) {
+          window.alert(t('toolbar.link.required'))
+          return
+        }
         const result = validateHref(link, href)
         if (result !== true) {
           window.alert(result)
