@@ -19,9 +19,11 @@ import {
   set,
   setIfMissing,
   unset,
+  useTranslation,
   type ArrayOfObjectsInputProps,
 } from 'sanity'
 
+import {I18N_NAMESPACE} from '../i18n'
 import {
   BLOCK_CONTENT_TYPE_CONFIG,
   getBlockContentConfig,
@@ -53,6 +55,7 @@ interface LocaleValue {
 export function InternationalizedInput(props: ArrayOfObjectsInputProps<LocaleValue>) {
   const {value, onChange, schemaType, readOnly, elementProps, validation, presence} = props
   const {status, languages} = useLanguageSettings()
+  const {t} = useTranslation(I18N_NAMESPACE)
   const [selectedLang, setSelectedLang] = useState<string | null>(null)
 
   // Which _keys already exist in the array. Updated optimistically by
@@ -157,7 +160,7 @@ export function InternationalizedInput(props: ArrayOfObjectsInputProps<LocaleVal
       <Flex padding={3} align="center" gap={2}>
         <Spinner muted />
         <Text size={1} muted>
-          Loading languages...
+          {t('input.loading')}
         </Text>
       </Flex>
     )
@@ -167,9 +170,7 @@ export function InternationalizedInput(props: ArrayOfObjectsInputProps<LocaleVal
     return (
       <Box padding={3}>
         <Text size={1} muted>
-          {status === 'error'
-            ? 'Could not load language settings. Check the browser console for details.'
-            : 'No language configured. Open "Language Settings" from the navbar and add at least one language.'}
+          {status === 'error' ? t('input.load-error') : t('input.no-languages')}
         </Text>
       </Box>
     )
@@ -205,7 +206,7 @@ export function InternationalizedInput(props: ArrayOfObjectsInputProps<LocaleVal
               // The dot means "no content in this language", the triangle means a
               // validation error: two different states, two different markers, both
               // readable without opening the tab.
-              label={`${lang.label}${lang.isDefault ? ' (source)' : ''}${hasError ? ' ⚠' : hasValue ? '' : ' ·'}`}
+              label={`${lang.isDefault ? t('input.tab.source', {language: lang.label}) : lang.label}${hasError ? ' ⚠' : hasValue ? '' : ' ·'}`}
               selected={activeLang === lang.code}
               onClick={() => setSelectedLang(lang.code)}
             />
@@ -245,7 +246,7 @@ export function InternationalizedInput(props: ArrayOfObjectsInputProps<LocaleVal
                   key={`${lang.code}:${getSourceHashFor(lang.code) ?? ''}`}
                   value={getBlocksValueFor(lang.code)}
                   onChange={(blocks) => handleChangeFor(lang.code, blocks)}
-                  placeholder={`Text in ${lang.label}`}
+                  placeholder={t('input.placeholder', {language: lang.label})}
                   readOnly={Boolean(readOnly)}
                 />
               ) : isMultiline ? (
@@ -255,7 +256,7 @@ export function InternationalizedInput(props: ArrayOfObjectsInputProps<LocaleVal
                   readOnly={Boolean(readOnly)}
                   value={getStringValueFor(lang.code)}
                   onChange={(event) => handleChangeFor(lang.code, event.currentTarget.value)}
-                  placeholder={`Text in ${lang.label}`}
+                  placeholder={t('input.placeholder', {language: lang.label})}
                 />
               ) : (
                 <TextInput
@@ -263,7 +264,7 @@ export function InternationalizedInput(props: ArrayOfObjectsInputProps<LocaleVal
                   readOnly={Boolean(readOnly)}
                   value={getStringValueFor(lang.code)}
                   onChange={(event) => handleChangeFor(lang.code, event.currentTarget.value)}
-                  placeholder={`Text in ${lang.label}`}
+                  placeholder={t('input.placeholder', {language: lang.label})}
                 />
               )}
             </Stack>

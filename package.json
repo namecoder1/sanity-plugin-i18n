@@ -73,6 +73,7 @@
     "@types/react": "^19.2.18",
     "conventional-changelog-conventionalcommits": "^8.0.0",
     "husky": "^9.1.7",
+    "i18next": "^26.5.11",
     "jsdom": "^30.0.1",
     "lint-staged": "^17.4.1",
     "oxfmt": "^0.63.0",

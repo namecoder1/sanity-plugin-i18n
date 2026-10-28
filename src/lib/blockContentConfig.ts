@@ -78,8 +78,11 @@ export interface ResolvedBlockContentConfig {
  */
 export const BLOCK_CONTENT_OPTIONS_KEY = 'autoI18nBlockContent'
 
-// Insertion order is the toolbar order when the caller omits a list.
-const STYLE_TITLES: Record<BlockContentStyle, string> = {
+// Insertion order is the toolbar order when the caller omits a list. Exported so the
+// editor can tell a default title (translated there to the Studio's locale) from one
+// the caller set.
+/** @internal */
+export const STYLE_TITLES: Record<BlockContentStyle, string> = {
   normal: 'Normal',
   h1: 'Heading 1',
   h2: 'Heading 2',
@@ -90,7 +93,8 @@ const STYLE_TITLES: Record<BlockContentStyle, string> = {
   blockquote: 'Quote',
 }
 
-const DECORATOR_TITLES: Record<BlockContentDecorator, string> = {
+/** @internal */
+export const DECORATOR_TITLES: Record<BlockContentDecorator, string> = {
   'strong': 'Bold',
   'em': 'Italic',
   'code': 'Code',
@@ -98,10 +102,14 @@ const DECORATOR_TITLES: Record<BlockContentDecorator, string> = {
   'strike-through': 'Strike',
 }
 
-const LIST_TITLES: Record<BlockContentList, string> = {
+/** @internal */
+export const LIST_TITLES: Record<BlockContentList, string> = {
   bullet: 'Bullet',
   number: 'Numbered',
 }
+
+/** @internal Title of the link annotation when the caller sets none. */
+export const LINK_TITLE = 'Link'
 
 function resolveOptions<Value extends string>(
   kind: string,
@@ -155,7 +163,7 @@ export function resolveBlockContentConfig(
       link === false
         ? false
         : {
-            title: link.title || 'Link',
+            title: link.title || LINK_TITLE,
             type: link.type ?? 'string',
             ...(link.validate ? {validate: link.validate} : {}),
           },

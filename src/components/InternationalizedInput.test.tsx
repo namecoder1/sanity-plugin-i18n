@@ -18,10 +18,16 @@ vi.mock('../lib/useLanguageSettings', () => ({
 
 // Both are `@internal` presentational components from `sanity`; importing the real
 // ones would drag the whole Studio runtime into a unit test.
+//
+// `useTranslation` is swapped for a real i18next instance holding the plugin's own
+// bundles: the Studio's locale provider is internal and needs a full workspace, and
+// without it the hook would render every key as the key itself (see the mock).
 vi.mock('sanity', async () => {
   const actual = await vi.importActual<typeof import('sanity')>('sanity')
+  const {useTestTranslation} = await import('../__mocks__/translation')
   return {
     ...actual,
+    useTranslation: useTestTranslation,
     FieldPresence: ({presence}: {presence: unknown[]}) => (
       <div data-testid="presence">{presence.length}</div>
     ),
@@ -32,6 +38,7 @@ vi.mock('sanity', async () => {
 })
 
 const {InternationalizedInput} = await import('./InternationalizedInput')
+const {setTestLocale} = await import('../__mocks__/translation')
 const {defineInternationalizedBlockContent, internationalizedBlockContentType} =
   await import('../schemaTypes/internationalizedField')
 
@@ -65,7 +72,10 @@ function renderInput(overrides: Record<string, unknown> = {}): {
 }
 
 beforeEach(() => vi.clearAllMocks())
-afterEach(() => document.body.replaceChildren())
+afterEach(() => {
+  document.body.replaceChildren()
+  setTestLocale('en-US')
+})
 
 describe('InternationalizedInput', () => {
   it('renders one tab per configured language, marking the source one', () => {
@@ -349,5 +359,58 @@ describe('InternationalizedInput with rich text', () => {
       'Numbered',
       'Link',
     ])
+  })
+})
+
+describe('InternationalizedInput in the Studio locale', () => {
+  it('shows the tabs and the placeholder in Italian with it-IT', () => {
+    setTestLocale('it-IT')
+    renderInput({value: []})
+    expect(screen.getByText('English (origine) ·')).toBeTruthy()
+    expect(screen.getByPlaceholderText('Testo in English')).toBeTruthy()
+  })
+
+  it('shows the Italian placeholder on another language tab', () => {
+    setTestLocale('it-IT')
+    renderInput({value: []})
+    fireEvent.click(screen.getByText(/Deutsch/))
+    expect(screen.getByPlaceholderText('Testo in Deutsch')).toBeTruthy()
+  })
+
+  it('keeps the English texts with en-US', () => {
+    renderInput({value: []})
+    expect(screen.getByText('English (source) ·')).toBeTruthy()
+    expect(screen.getByPlaceholderText('Text in English')).toBeTruthy()
+  })
+
+  it('translates the default toolbar titles but keeps the configured ones', async () => {
+    setTestLocale('it-IT')
+    const custom = defineInternationalizedBlockContent({
+      name: 'custom',
+      styles: [{value: 'normal', title: 'Paragrafo'}, {value: 'h2'}],
+      decorators: [{value: 'strong'}],
+      lists: [],
+    })
+    render(
+      <ThemeProvider theme={studioTheme}>
+        {
+          (
+            <InternationalizedInput
+              {...({
+                value: [],
+                onChange: vi.fn(),
+                schemaType: {name: custom.name, options: custom.options},
+                elementProps: {id: 'field-body'},
+                validation: [],
+                presence: [],
+              } as any)}
+            />
+          ) as ReactElement
+        }
+      </ThemeProvider>,
+    )
+    await screen.findByRole('button', {name: 'Grassetto'})
+    const labels = screen.getAllByRole('button').map((b) => b.getAttribute('aria-label'))
+    expect(labels).toEqual(['Paragrafo', 'Titolo 2', 'Grassetto', 'Link'])
   })
 })
