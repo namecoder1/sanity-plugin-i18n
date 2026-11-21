@@ -49,7 +49,7 @@ jobs:
       - uses: actions/setup-node@v7
         with:
           node-version: lts/*
-      - run: npm i -g corepack@latest && corepack enable
+      - run: npm i -g corepack@0.36.0 && corepack enable
       - run: pnpm install --frozen-lockfile
         # Linting can be skipped
       - run: pnpm run --if-present lint
@@ -93,7 +93,7 @@ jobs:
       - uses: actions/setup-node@v7
         with:
           node-version: ${{ matrix.node }}
-      - run: npm i -g corepack@latest && corepack enable
+      - run: npm i -g corepack@0.36.0 && corepack enable
       - run: pnpm install --frozen-lockfile
       - run: pnpm run --if-present test
 
@@ -117,7 +117,7 @@ jobs:
       - uses: actions/setup-node@v7
         with:
           node-version: lts/*
-      - run: npm i -g corepack@latest && corepack enable
+      - run: npm i -g corepack@0.36.0 && corepack enable
       - run: pnpm install --frozen-lockfile
         # npm Trusted Publishing (OIDC) needs npm CLI >=11.5.1, and the one bundled
         # with Node LTS is often older. There is no NPM_TOKEN in this job: publishing
